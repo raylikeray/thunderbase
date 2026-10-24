@@ -138,7 +138,7 @@ async function standings(season) {
     }).sort((a, b) => a.seed - b.seed || (b.w - b.l) - (a.w - a.l));
     confs.push({ name: conf.name, abbr: conf.abbreviation, rows });
   }
-  return { confs, byId, season: d.seasonDisplayName || '' };
+  return { confs, byId, season: d.seasonDisplayName || (season ? `${season - 1}–${String(season).slice(2)}` : `${seasonYear() - 1}–${String(seasonYear()).slice(2)}`) };
 }
 async function priorStandings() { try { return await standings(seasonYear() - 1); } catch { return null; } }
 
@@ -172,7 +172,7 @@ function forecast(g, ctx) {
     const rem = per <= 4 ? (4 - per) * 12 + left : left;
     const frac = Math.max(rem, 0) / 48;
     const lead = g.home.score - g.away.score;
-    const sd = SD * Math.sqrt(frac) + 0.6;
+    const sd = 14 * Math.sqrt(frac) + 1.5;   // calibrated a little wider than pure random-walk so late leads aren't overstated
     p = Phi((lead + margin * frac) / sd); live = true;
   } else if (g.state === 'post') { p = g.home.winner ? 1 : 0; }
   return { pHome: p, margin, live, H, A, restH, restA };
@@ -342,18 +342,18 @@ views.tonight = async () => {
   $main.innerHTML = `<div class="grid"><div class="col">${skeleton(5)}${skeleton(4)}</div><div class="col">${skeleton(8)}${skeleton(5)}</div></div>`;
   const ymd = todayCT();
   const [ctx, ai, inj, news] = await Promise.all([forecastCtx(ymd), aiFor(ymd), jSoft(`${API}/injuries`, 600000), jSoft(`${API}/news?limit=12`, 600000)]);
-  let okcGame = S.today.find(hasOKC), badge = 'Tonight', okcAi = null;
+  let okcGame = S.today.find(hasOKC), badge = 'Tonight', okcAi = null, okcCtx = ctx;
   if (!okcGame) {
     const sch = await jSoft(`${API}/teams/${OKC}/schedule`, 600000);
     const evs = (sch && sch.events || []).map(parseEvent);
     const next = evs.find(g => g.state !== 'post'); const last = [...evs].reverse().find(g => g.state === 'post');
     okcGame = next || last; badge = next ? (relDay(ymdFmt.format(new Date(next.date))) === 'Tomorrow' ? 'Tomorrow' : 'Next game') : 'Last game';
-    if (next) okcAi = aiEntry(await aiFor(ymdFmt.format(new Date(next.date))), next.id);
+    if (next) { const nd = ymdFmt.format(new Date(next.date)); okcAi = aiEntry(await aiFor(nd), next.id); okcCtx = await forecastCtx(nd); }
   } else okcAi = aiEntry(ai, okcGame.id);
 
   const render = () => {
     const parts = [];
-    if (okcGame) parts.push(keyBlock(okcGame, forecast(okcGame, ctx), okcAi, { badge }));
+    if (okcGame) parts.push(keyBlock(okcGame, forecast(okcGame, okcCtx), okcAi, { badge }));
     else parts.push(state('Thunder schedule unavailable', '<p>The team schedule feed did not answer.</p>', true));
 
     const upcoming = S.today.filter(g => g.state !== 'post');
@@ -545,14 +545,15 @@ views.standings = async () => {
 /* ---------- TEAMS ---------- */
 views.teams = async () => {
   $main.innerHTML = `<div class="pagehead"><div><h1>Teams</h1></div></div>${skeleton(8)}`;
-  const [td, cur] = await Promise.all([jSoft(`${API}/teams`, 86400000), standings().catch(() => null)]);
-  const teams = (td && td.sports && td.sports[0].leagues[0].teams || []).map(x => x.team);
-  if (!teams.length) { $main.innerHTML = failMsg('teams'); return; }
+  const cur = await standings().catch(() => null);
+  if (!cur) { $main.innerHTML = failMsg('teams'); return; }
+  const teams = cur.confs.flatMap(c => c.rows).map(r => ({ id: r.id, abbreviation: r.abbr, displayName: r.name, color: TEAM_COLORS[r.abbr], logos: [{ href: r.logo }] }));
   const card = t => { const r = cur && cur.byId[String(t.id)]; return `<a class="team-card" href="#team-${t.id}"><img src="${esc(t.logos && t.logos[0] && t.logos[0].href || logoUrl(t.abbreviation))}" alt="" loading="lazy"><span><b>${esc(t.displayName)}</b><small>${r ? `${r.w}–${r.l} · ${ordinal(r.seed)} in ${esc(r.conf)}` : esc(t.abbreviation)}</small></span><i class="band" style="background:${hx(t.color)}"></i></a>`; };
   const groups = cur ? cur.confs.map(c => ({ name: c.name, list: teams.filter(t => cur.byId[String(t.id)] && cur.byId[String(t.id)].confName === c.name).sort((a, b) => a.displayName.localeCompare(b.displayName)) })) : [{ name: 'All teams', list: teams }];
   const okc = teams.find(t => String(t.id) === OKC);
   $main.innerHTML = `<div class="pagehead"><div><h1>Teams</h1><p>All 30, with every roster, schedule and stat line one tap away</p></div></div>${okc ? `<div class="teams" style="margin-bottom:6px">${card(okc)}</div>` : ''}${groups.map(gp => `<h2 class="conf-h">${esc(gp.name)}</h2><div class="teams">${gp.list.map(card).join('')}</div>`).join('')}`;
 };
+const TEAM_COLORS = { ATL: 'e03a3e', BOS: '008348', BKN: '000000', CHA: '1d1160', CHI: 'ce1141', CLE: '860038', DAL: '0064b1', DEN: '0e2240', DET: 'c8102e', GS: '1d428a', HOU: 'ce1141', IND: '002d62', LAC: 'c8102e', LAL: '552583', MEM: '5d76a9', MIA: '98002e', MIL: '00471b', MIN: '0c2340', NO: '0c2340', NY: 'f58426', OKC: '007ac1', ORL: '0077c0', PHI: '1d428a', PHX: '1d1160', POR: 'e03a3e', SAC: '5a2d81', SA: 'c4ced4', TOR: 'ce1141', UTAH: '4e008e', UTA: '4e008e', WSH: '002b5c' };
 const ordinal = n => { if (!n || n > 30) return '—'; const s = ['th', 'st', 'nd', 'rd'], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); };
 
 /* ---------- league player list (shared by Players and Team) ---------- */
@@ -589,7 +590,7 @@ views.players = async () => {
     rows.sort((a, b) => (b[P.sort] || 0) - (a[P.sort] || 0));
     const table = rows.length ? playerTable(rows, P.sort, true, P.limit) : `<p class="muted">No players match that.</p>`;
     document.getElementById('ptable').innerHTML = table + (rows.length > P.limit ? `<div style="margin-top:12px"><button class="btn sm ghost" data-act="pmore">Show ${Math.min(100, rows.length - P.limit)} more of ${rows.length}</button></div>` : '');
-    document.getElementById('pcount').textContent = `${rows.length} players${P.qual ? ` · at least ${Math.ceil(maxGp * 0.5)} games` : ''}`;
+    document.getElementById('pcount').textContent = `${rows.length} players${P.qual ? ` · at least ${Math.ceil(maxGp * 0.5)} game${Math.ceil(maxGp * 0.5) === 1 ? '' : 's'}` : ''}`;
   };
   $main.innerHTML = `<div class="pagehead"><div><h1>Players</h1><p>${esc(data.label ? data.label + ' · ' : '')}per-game averages · tap a column to sort</p></div></div>
     <div class="ctrls"><input class="inp" id="pq" type="search" placeholder="Search a player or team (e.g. Shai, OKC)" value="${esc(P.q)}" aria-label="Search players">
@@ -610,8 +611,9 @@ function seasonYear() { const now = new Date(); return now.getUTCMonth() >= 6 ? 
 /* ---------- TEAM ---------- */
 views.team = async (id) => {
   $main.innerHTML = `<div class="grid"><div class="col">${skeleton(4)}${skeleton(12)}</div><div class="col">${skeleton(10)}</div></div>`;
-  const [info, roster, sched, cur] = await Promise.all([jSoft(`${API}/teams/${id}`, 600000), jSoft(`${API}/teams/${id}/roster`, 3600000), jSoft(`${API}/teams/${id}/schedule`, 300000), standings().catch(() => null)]);
-  const t = info && info.team;
+  const [roster, sched, cur] = await Promise.all([jSoft(`${API}/teams/${id}/roster`, 900000), jSoft(`${API}/teams/${id}/schedule`, 300000), standings().catch(() => null)]);
+  const t0 = roster && roster.team;
+  const t = t0 && { ...t0, logos: [{ href: t0.logo }], alternateColor: t0.alternateColor || null, record: { items: [{ summary: t0.recordSummary }] }, color: t0.color || TEAM_COLORS[t0.abbreviation] };
   if (!t) { $main.innerHTML = failMsg('this team'); return; }
   const r = cur && cur.byId[String(id)];
   const bg = darkOf(t.color, t.alternateColor);
