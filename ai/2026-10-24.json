@@ -1,0 +1,56 @@
+{
+ "date": "2026-10-24",
+ "generated": "2026-10-24T23:50:00Z",
+ "model": "Claude",
+ "games": {
+  "401909854": {
+   "headline": "Two 0-1 teams, and Cleveland has the better closer at home",
+   "read": "Both lost their openers by single digits, so there is almost nothing to separate them on this year's numbers. Donovan Mitchell opened with 32 and 10, Julius Randle with 33, 8 and 7. Home court and Cleveland's deeper guard pairing with James Harden tilt it toward the Cavs.",
+   "keys": ["Neither team on a back-to-back", "Brooklyn without Tyler Bilodeau", "Randle carried Brooklyn's whole offense in game one"],
+   "pick": "CLE",
+   "confidence": "medium"
+  },
+  "401909855": {
+   "headline": "Philly at home against a Milwaukee team on the second night of a back-to-back",
+   "read": "The 76ers are 2-0 with Tyrese Maxey averaging 30, while the Bucks are 0-2 and giving up 130 a night. LeBron James is ruled out for Philadelphia, which takes a playmaker off the floor, but Milwaukee's defense and tired legs are the bigger problem.",
+   "keys": ["MIL allowing 130.0 per game", "MIL on a back-to-back", "PHI without LeBron James (back)"],
+   "pick": "PHI",
+   "confidence": "medium"
+  },
+  "401909857": {
+   "headline": "Both on back-to-backs, both shorthanded",
+   "read": "Chicago has allowed 130 a game and is missing Patrick Williams, Noa Essengue and Nic Claxton up front. Washington's Trae Young is averaging 12.5 assists with Anthony Davis finishing, but AJ Dybantsa is out. Close to a coin flip; the Wizards' better margin offsets Chicago's home floor.",
+   "keys": ["CHI frontcourt thin with three bigs out", "Trae Young 12.5 APG", "Both teams on the second night"],
+   "pick": "WSH",
+   "confidence": "low"
+  },
+  "401909858": {
+   "headline": "I-35 rivalry with both stars' supporting casts thinned out",
+   "read": "Dallas is resting Kyrie Irving and is missing Cooper Flagg, Caleb Martin and Santi Aldama, which strips most of its creation. San Antonio is 0-2 but has Victor Wembanyama at 13 rebounds a game and De'Aaron Fox running the offense. With Dallas this short, the Spurs are the lean even on the road.",
+   "keys": ["DAL without Irving (rest) and Flagg (shoulder)", "Wembanyama 13.0 RPG", "Both teams on a back-to-back"],
+   "pick": "SA",
+   "confidence": "low"
+  },
+  "401909856": {
+   "headline": "Battle of the 2-0s in Atlanta",
+   "read": "Atlanta has won its first two by a combined 54 points and scores 130 a game. Houston is also unbeaten behind Alperen Sengun's 26 a night, but Fred VanVleet, Marcus Smart and Steven Adams are all out, which leaves the Rockets thin at guard and center. The Hawks at home are the pick.",
+   "keys": ["ATL +27.0 average margin", "HOU missing VanVleet, Smart and Adams", "Both on the second night of a back-to-back"],
+   "pick": "ATL",
+   "confidence": "medium"
+  },
+  "401909859": {
+   "headline": "Denver gets a rested home game against a team that played last night",
+   "read": "The Nuggets scored just 84 in their opener at Oklahoma City and are missing Cameron Johnson, Spencer Jones and Julian Strawther. New Orleans has scored well (119.5) but given up more and is on a back-to-back. Rest and altitude make Denver the clear lean.",
+   "keys": ["NOP on a back-to-back at altitude", "DEN wing depth thin with three out", "Zion Williamson 22.5 PPG"],
+   "pick": "DEN",
+   "confidence": "medium"
+  },
+  "401909860": {
+   "headline": "Golden State is sitting most of its veterans",
+   "read": "The Warriors are on the second night of a back-to-back and have ruled out Stephen Curry, Al Horford and Brandin Podziemski, with Draymond Green doubtful. Phoenix lost its opener by 41, which is a warning sign, but against this Warriors lineup at home the Suns should be favored.",
+   "keys": ["GSW without Curry (rest), Horford, Podziemski", "Green doubtful", "PHX lost its opener by 41"],
+   "pick": "PHX",
+   "confidence": "medium"
+  }
+ }
+}
