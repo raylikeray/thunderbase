@@ -142,7 +142,7 @@ async function standings(season) {
 }
 async function priorStandings() { try { return await standings(seasonYear() - 1); } catch { return null; } }
 
-async function aiFor(ymd) { return jSoft(`ai/${ymd}.json?d=${ymd}`, 600000); }
+async function aiFor() { return null; }   // AI reads switched off (Oct 2026)
 
 /* ================= forecast model =================
    Team strength = point differential per game, shrunk toward last season's
@@ -689,7 +689,7 @@ views.forecasts = async () => {
       <p style="margin:0 0 10px">Each team gets a rating: its average point margin this season, blended with last season's margin while the sample is small. Ten games in, this season counts for half.</p>
       <p style="margin:0 0 10px">Projected margin = rating gap + ${HCA} for home court − ${B2B} for a team on the second night of a back-to-back + a small last-10 form edge. That margin becomes a win chance using the typical ${SD}-point spread of NBA results.</p>
       <p style="margin:0 0 10px">During a game the chance updates from the score and the time left. Tap <b>Why</b> on any game to see its inputs.</p>
-      <p class="note">AI reads are written by Claude each morning from the day's standings, injuries and form. They are an opinion with reasons, not a prediction you should bet on.</p></section>
+</section>
       ${cur ? standingsMini(cur, 'West', 10) : ''}</div></div>`;
 };
 
