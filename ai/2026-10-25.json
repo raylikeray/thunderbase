@@ -1,0 +1,84 @@
+{
+ "date": "2026-10-25",
+ "generated": "2026-10-25T14:23:26Z",
+ "model": "Claude",
+ "games": {
+  "401909861": {
+   "headline": "Lakers bring a +15 margin into Utah against a Jazz defense giving up 121",
+   "read": "Two games in, so treat every number lightly, but the Lakers have won both by an average of 15 while Utah is allowing 121 a night. Luka Doncic leads LA at 25.5 and Walker Kessler has been a force inside with 24 points and 4 blocks per game. Utah is home and has Keyonte George and Jaren Jackson Jr. producing, but Jusuf Nurkic is out for weeks and that leaves them thin against Kessler. Lakers miss only depth pieces in Adou Thiero and Cameron Carr.",
+   "keys": [
+    "Lakers +15.0 vs Jazz -9.5 point differential",
+    "Jazz without Jusuf Nurkic inside",
+    "Both teams rested"
+   ],
+   "pick": "LAL",
+   "confidence": "medium"
+  },
+  "401909862": {
+   "headline": "Brooklyn on the second night of a back-to-back with Mikel Brown Jr. sitting",
+   "read": "Neither team has been good early, with Brooklyn at -5.5 and Indiana at -6.5 per game. The difference tonight is rest: the Nets played last night and are holding Mikel Brown Jr. out, while the Pacers come in fresh. Julius Randle is averaging 28, 7 and 6 and can swing any game, but Pascal Siakam (26.5) and Tyrese Haliburton (9.5 assists) give Indiana two creators even without T.J. McConnell.",
+   "keys": [
+    "Nets on a back-to-back, Pacers rested",
+    "Mikel Brown Jr. held out for rest",
+    "Indiana down McConnell, Sheppard and Furphy"
+   ],
+   "pick": "IND",
+   "confidence": "medium"
+  },
+  "401909863": {
+   "headline": "Two 0-2 teams, but Orlando arrives without Paolo Banchero",
+   "read": "Both teams are winless, but the margins are not close: New York has lost by 5 a game while Orlando has been outscored by 14.5. The Magic are also missing Paolo Banchero for four to six weeks plus Jonathan Isaac and Noah Penda, with Anthony Black questionable. Karl-Anthony Towns is putting up 20.5 and 11 for a Knicks offense that has scored just 101.5, so this may be a grind, but home court and health favor New York.",
+   "keys": [
+    "Banchero, Isaac and Penda out for Orlando",
+    "Margins: Knicks -5.0, Magic -14.5",
+    "Jose Alvarado questionable for New York"
+   ],
+   "pick": "NY",
+   "confidence": "medium"
+  },
+  "401909864": {
+   "headline": "Two unbeaten teams with blowout margins meet in Minneapolis",
+   "read": "Toronto is +26.5 and Minnesota +23.5 through two games each, so something has to give, and two games is far too small a sample to separate them. Anthony Edwards is scoring 30 with 3 steals a night and Rudy Gobert is pulling 12 boards, while Scottie Barnes is going for 25.5 and 10 for the Raptors. Both are rested, both are missing a long-term absence in Donte DiVincenzo and Brandon Ingram, so home court is the tiebreaker.",
+   "keys": [
+    "Both 2-0 with margins over +23",
+    "Edwards at 30 PPG vs Barnes at 25.5 and 10",
+    "Minnesota at home, both rested"
+   ],
+   "pick": "MIN",
+   "confidence": "low"
+  },
+  "401909865": {
+   "headline": "Thunder defense allowing 94 a night hosts a Clippers team leaning on Garland",
+   "read": "Oklahoma City is 2-0 and holding opponents to 94 points, with Shai Gilgeous-Alexander at 24.5 and Chet Holmgren grabbing 12 rebounds. The Clippers have been decent at +8.5, with Darius Garland scoring 28, but they are without Bradley Beal and Max Strus. Neither team is on a back-to-back, and the Thunder's absences are mostly end-of-bench guys, so health, home court and margin all lean OKC on a tiny sample.",
+   "keys": [
+    "OKC allowing 94.0 per game",
+    "Clippers missing Beal and Strus",
+    "Both rested, Thunder at home"
+   ],
+   "pick": "OKC",
+   "confidence": "high"
+  },
+  "401909866": {
+   "headline": "Unbeaten Sixers on a back-to-back against a fresh Pistons team missing Jalen Duren",
+   "read": "Philadelphia is 3-0 behind Tyrese Maxey's 28.7 a game and Joel Embiid just put up 28, 11 and 10 last night, but this is the second half of a back-to-back and LeBron James (back) and Jabari Walker (ankle) are both day-to-day. Detroit is 2-0 at +12.5 and rested, though Jalen Duren is out and Ausar Thompson is questionable, which hurts them on the glass. Rest favors the Pistons, home court and health uncertainty cut both ways.",
+   "keys": [
+    "Sixers on a back-to-back, Pistons rested",
+    "Pistons without Jalen Duren, Ausar Thompson questionable",
+    "LeBron James day-to-day with a back issue"
+   ],
+   "pick": "DET",
+   "confidence": "low"
+  },
+  "401909867": {
+   "headline": "Memphis rides Ty Jerome's 36.5 into Sacramento, but without Zach Edey",
+   "read": "The Grizzlies are 2-0 at +11.5 and Ty Jerome has been scoring 36.5 a night, while Sacramento is 0-2 and getting outscored by 16.5. Domantas Sabonis is averaging 20.5, 18.5 and 9 for the Kings, and with Zach Edey out for Memphis he may own the paint. Still, Sacramento is without Ben Simmons, Dylan Cardwell and Maxime Raynaud, and Keegan Murray is questionable, so the margins and health lean Memphis.",
+   "keys": [
+    "Margins: Grizzlies +11.5, Kings -16.5",
+    "Memphis without Zach Edey",
+    "Sacramento missing Simmons, Cardwell and Raynaud"
+   ],
+   "pick": "MEM",
+   "confidence": "medium"
+  }
+ }
+}
