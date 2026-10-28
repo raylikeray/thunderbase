@@ -2,11 +2,15 @@
 (function () {
 'use strict';
 const HW = window.HW;
-const { LEAGUES, ORDER, todayCT, timeCT, scoreboard, isLive, S, allToday, cache, favs, store, params } = HW;
+const { LEAGUES, ORDER, SPORTS, sportOf, todayCT, timeCT, scoreboard, isLive, S, allToday, cache, favs, store, params } = HW;
 HW.route = () => route();
 const $main = document.getElementById('main');
 const $fresh = document.getElementById('fresh'), $freshText = document.getElementById('freshText');
-const $ltabs = document.getElementById('ltabs'), $subnav = document.getElementById('subnav');
+const $ltabs = document.getElementById('ltabs'), $subnav = document.getElementById('subnav'), $sports = document.getElementById('sports');
+const sportKey = lk => (LEAGUES[lk] || LEAGUES.nba).sport;
+const sportDef = key => SPORTS.find(s => s.key === key) || SPORTS[0];
+/* which league a sport opens on: the one last viewed in that sport, else its first */
+const sportHome = key => { const d = sportDef(key); const last = store.get('lk:' + key, ''); return d.leagues.includes(last) ? last : d.leagues[0]; };
 
 /* ---------- freshness ---------- */
 function paintFresh() {
@@ -20,6 +24,7 @@ function paintFresh() {
   else $freshText.textContent = `${live ? live + ' live · ' : ''}${timeCT(new Date(S.lastOk))} CT`;
   const short = document.getElementById('freshShort'); if (short) short.textContent = S.err ? 'feed down' : !S.lastOk ? '…' : live ? `${live} live` : new Date(S.lastOk).toLocaleTimeString('en-US', { timeZone: HW.TZ, hour: 'numeric', minute: '2-digit' });
   ORDER.forEach(k => { const n = S.today[k].filter(isLive).length; const a = $ltabs.querySelector(`[data-lk="${k}"]`); if (a) { a.classList.toggle('live', n > 0); a.setAttribute('data-live', n || ''); } });
+  SPORTS.forEach(sp => { const n = sp.leagues.reduce((t, k) => t + S.today[k].filter(isLive).length, 0); const a = $sports.querySelector(`[data-sport="${sp.key}"]`); if (a) { a.classList.toggle('live', n > 0); a.setAttribute('data-live', n || ''); } });
 }
 setInterval(paintFresh, 5000);
 
@@ -28,9 +33,11 @@ async function tick() {
   clearTimeout(S.timer);
   const ymd = todayCT();
   if (ymd !== S.todayYmd) S.todayYmd = ymd;
-  const results = await Promise.all(ORDER.map(k => scoreboard(LEAGUES[k], ymd, 0).then(v => ({ k, v })).catch(() => ({ k, err: true }))));
+  S.polled = S.polled || {}; const F = favs.all(); const cur = sportKey(S.league || 'nba'); const now = Date.now();
+  const due = ORDER.filter(k => sportKey(k) === cur || (F[k] || []).length || !S.polled[k] || now - S.polled[k] > 300000);
+  const results = await Promise.all(due.map(k => scoreboard(LEAGUES[k], ymd, 0).then(v => ({ k, v })).catch(() => ({ k, err: true }))));
   const anyOk = results.some(r => !r.err);
-  results.forEach(r => { if (!r.err) S.today[r.k] = r.v; });
+  results.forEach(r => { if (!r.err) { S.today[r.k] = r.v; S.polled[r.k] = now; } });
   if (anyOk) { S.lastOk = Date.now(); S.err = false; } else S.err = true;
   paintFresh();
   try { checkAlerts(); } catch (e) { console.error(e); }
@@ -56,7 +63,7 @@ const SECTIONS = ['center', 'scores', 'game', 'standings', 'rankings', 'teams', 
 const { lkOf, remember } = HW.render;
 function parseHash() {
   let h = decodeURIComponent((location.hash || '').slice(1)).replace(/^\/+|\/+$/g, '');
-  const LK = '(nba|wnba|ncaam|ncaaw)';
+  const LK = `(${ORDER.join('|')})`;
   if (!h || h === 'home' || h === 'tonight' || h === 'scores' || h === 'forecasts') { const lk = lkOf(store.get('lk', 'nba')); return { lk, name: h === 'scores' || h === 'forecasts' ? h : 'center', args: [lk] }; }
   if (h === 'record') return { lk: lkOf(store.get('lk', 'nba')), name: 'record', args: [] };
   let m;
@@ -71,7 +78,9 @@ function parseHash() {
   { const lk = lkOf(store.get('lk', 'nba')); return { lk, name: 'center', args: [lk] }; }
 }
 function paintNav(lk, name) {
-  const L = LEAGUES[lk];
+  const L = LEAGUES[lk]; const sp = sportKey(lk); store.set('lk:' + sp, lk);
+  if ($sports.dataset.on !== sp) { $sports.dataset.on = sp; $sports.innerHTML = SPORTS.map(x => `<a href="#${sportHome(x.key)}" data-sport="${x.key}" class="${x.key === sp ? 'on' : ''}"${x.key === sp ? ' aria-current="true"' : ''}>${x.label}</a>`).join(''); $ltabs.innerHTML = sportDef(sp).leagues.map(k => `<a href="#${k}" data-lk="${k}">${LEAGUES[k].label}</a>`).join(''); paintFresh(); }
+  else $sports.querySelectorAll('a').forEach(a => { a.href = '#' + sportHome(a.dataset.sport); });
   $ltabs.querySelectorAll('a').forEach(a => { const on = a.dataset.lk === lk; a.classList.toggle('on', on); if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
   const sec = name === 'game' ? 'scores' : name === 'team' ? 'teams' : name === 'player' ? 'players' : name;
   const items = [['center', 'Center', `#${lk}`], ['scores', 'Scores', `#${lk}/scores`], L.hasRankings ? ['rankings', 'Rankings', `#${lk}/rankings`] : null, ['standings', 'Standings', `#${lk}/standings`], ['teams', 'Teams', `#${lk}/teams`], ['players', 'Players', `#${lk}/players`], ['forecasts', 'Forecasts', `#${lk}/forecasts`], L.hasInjuries ? ['injuries', 'Injuries', `#${lk}/injuries`] : null, ['news', 'News', `#${lk}/news`], ['record', 'Record', '#record']].filter(Boolean);
@@ -84,10 +93,11 @@ let navSeq = 0;
 async function route() {
   const r = parseHash();
   const seq = ++navSeq;
+  const sportChanged = S.lastOk && sportKey(r.lk) !== sportKey(S.league || r.lk);
   remember(r.lk); S.league = r.lk;
   paintNav(r.lk, r.name);
   S.route = null;
-  if (!S.lastOk && !S.err) await tick();
+  if ((!S.lastOk && !S.err) || sportChanged) await tick();
   try {
     const res = await HW.views[r.name](...r.args);
     if (seq === navSeq) S.route = res || null;
@@ -121,6 +131,7 @@ document.addEventListener('click', e => {
     if (a === 'stmode') { HW.views.standings.render(act.dataset.m); return; }
     if (a === 'psort') { HW.views.players.st.sort = act.dataset.k; HW.views.players.paint ? HW.views.players.paint() : route(); return; }
     if (a === 'pmore') { HW.views.players.st.limit += 100; HW.views.players.paint(); return; }
+    if (a === 'pcat') { e.preventDefault(); if (HW.views.players.setCat) HW.views.players.setCat(act.dataset.k); return; }
     if (a === 'fav') { const on = favs.toggle(act.dataset.lk, act.dataset.id); act.textContent = on ? '★ In my teams' : '☆ Add to my teams'; act.setAttribute('aria-pressed', on); return; }
     if (a === 'reload') { e.preventDefault(); cache.clear(); tick().then(route); return; }
     if (a === 'pick') { e.preventDefault(); HW.render.pickerOpen(act.dataset.lk); return; }
@@ -201,8 +212,10 @@ const markAlert = (k) => { const s = store.get('alerts:seen', {}); s[k] = Date.n
 function lateAndClose(L, g) {
   if (g.state !== 'in') return false;
   const margin = Math.abs((g.home.score || 0) - (g.away.score || 0));
-  const reg = L.minutes === 48 ? 4 : 2; const last = g.period >= reg;
+  const reg = L.periods || 4; const last = g.period >= reg;
+  if (L.sport === 'baseball') return last && margin <= 2;                       // 9th inning or later, within two runs
   const [mm] = String(g.clock || '0:00').split(':').map(Number);
+  if (L.sport === 'football') return last && margin <= 8 && (mm || 0) < 5;      // one-score game, under five minutes
   return last && margin <= 5 && (mm || 0) < 3;
 }
 function checkAlerts() {
@@ -215,7 +228,7 @@ function checkAlerts() {
       if (!mine.includes(g.home.id) && !mine.includes(g.away.id)) return;
       const key = `${lk}:${g.id}`; const url = `#${lk}/game/${g.id}`; const name = `${g.away.abbr} at ${g.home.abbr}`;
       const mins = (new Date(g.date) - Date.now()) / 60000;
-      if (P.pre && g.state === 'pre' && mins > 0 && mins <= 30 && !seenAlert(key + ':pre')) { markAlert(key + ':pre'); HW.forecastCtx(L, S.todayYmd).catch(() => null).then(ctx => { let fc = ''; try { if (ctx) { const f = HW.forecast(L, g, ctx); const fav = f.pHome >= .5 ? g.home : g.away; fc = ` · model ${fav.abbr} ${Math.round(Math.max(f.pHome, 1 - f.pHome) * 100)}%`; const so = (f.soH && mine.includes(g.home.id)) ? f.soH : (f.soA && mine.includes(g.away.id)) ? f.soA : null; if (so) fc += ` · ${so.names.length > 1 ? so.names.length + ' out' : so.name + ' out'}`; } } catch { } notify(`${name} tips in ${Math.round(mins)} min`, `${HW.tip(g.date)} CT${g.tv.label ? ' · ' + g.tv.label : ''}${fc}`, { tag: key + ':pre', url }); }); }
+      if (P.pre && g.state === 'pre' && mins > 0 && mins <= 30 && !seenAlert(key + ':pre')) { markAlert(key + ':pre'); HW.forecastCtx(L, S.todayYmd).catch(() => null).then(ctx => { let fc = ''; try { if (ctx) { const f = HW.forecast(L, g, ctx); const fav = f.pHome >= .5 ? g.home : g.away; fc = ` · model ${fav.abbr} ${Math.round(Math.max(f.pHome, 1 - f.pHome) * 100)}%`; const so = (f.soH && mine.includes(g.home.id)) ? f.soH : (f.soA && mine.includes(g.away.id)) ? f.soA : null; if (so) fc += ` · ${so.names.length > 1 ? so.names.length + ' out' : so.name + ' out'}`; } } catch { } notify(`${name} ${L.verb || 'starts'} in ${Math.round(mins)} min`, `${HW.tip(g.date)} CT${g.tv.label ? ' · ' + g.tv.label : ''}${fc}`, { tag: key + ':pre', url }); }); }
       if (P.close && lateAndClose(L, g) && !seenAlert(key + ':close')) { markAlert(key + ':close'); notify(`Close one: ${g.away.abbr} ${g.away.score}, ${g.home.abbr} ${g.home.score}`, `${g.detail} · open Tipoff`, { tag: key + ':close', url }); }
       if (P.final && g.state === 'post' && seenAlert(key + ':live') && !seenAlert(key + ':final')) { markAlert(key + ':final'); const w = g.home.score > g.away.score ? g.home : g.away, l = w === g.home ? g.away : g.home; notify(`Final: ${w.abbr} ${w.score}, ${l.abbr} ${l.score}`, `${w.short} ${mine.includes(w.id) ? 'win' : 'beat ' + l.short}`, { tag: key + ':final', url }); }
       if (g.state === 'in' && !seenAlert(key + ':live')) markAlert(key + ':live');

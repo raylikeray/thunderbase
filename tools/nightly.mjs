@@ -25,10 +25,14 @@ const writeJson = (p, v) => { mkdirSync(p.split('/').slice(0, -1).join('/'), { r
 function side(x) { const t = x.team || {}; const r = x.curatedRank && x.curatedRank.current; return { id: String(t.id), abbr: t.abbreviation || '', name: t.displayName || '', short: t.shortDisplayName || t.name || '', score: x.score != null && x.score !== '' ? +x.score : null, rank: r && r <= 25 ? r : null, rec: x.records && x.records[0] && x.records[0].summary || '', leaders: (x.leaders || []).map(l => ({ name: l.name, who: l.leaders && l.leaders[0] && l.leaders[0].athlete && l.leaders[0].athlete.displayName, val: l.leaders && l.leaders[0] && l.leaders[0].displayValue })) }; }
 function parseEvent(e) { const c = e.competitions[0]; const st = (c.status || e.status || {}).type || {}; const comp = c.competitors || []; return { id: String(e.id), date: e.date, name: e.name, state: st.state, detail: st.shortDetail, home: side(comp.find(x => x.homeAway === 'home') || comp[0] || {}), away: side(comp.find(x => x.homeAway === 'away') || comp[1] || {}), neutral: !!c.neutralSite, venue: c.venue && c.venue.fullName, tv: (c.broadcasts || []).flatMap(b => b.names || []).join(', '), note: c.notes && c.notes[0] && c.notes[0].headline || '' }; }
 async function scoreboard(L, ymd) { const d = await get(`${API(L)}/scoreboard?dates=${compact(ymd)}${L.sbParams}`); return (d.events || []).map(parseEvent); }
+/* football and baseball standings carry season totals; the model works in per-game terms */
+function perGame(L, val, v, always = false) { if (val == null || !(L.diffIsTotal || always)) return val; const gp = (v('wins') || 0) + (v('losses') || 0) + (v('ties') || 0) || v('gamesPlayed'); return gp ? +(val / gp).toFixed(2) : val; }
+/* the year ESPN labels a league's current season with (end year for seasons that span New Year) */
+function seasonLabel(L) { const y = +L.seasonStart.slice(0, 4), m = +L.seasonStart.slice(5, 7); return m >= 7 && L.sport === 'basketball' ? y + 1 : y; }
 function statMap(stats) { const s = {}; (stats || []).forEach(x => { if (x.name) s[x.name] = x; if (x.displayName) s[x.displayName] = s[x.displayName] || x; }); return s; }
 async function standings(L, season) {
-  const d = await soft(`${API2(L)}/standings${season ? '?season=' + season : ''}${L.standingsMode === 'conferences' ? (season ? '&' : '?') + 'group=50&level=3' : ''}`);
-  const rows = {}; const walk = (node, grp) => { if (!node) return; if (node.standings && node.standings.entries) node.standings.entries.forEach(en => { const s = statMap(en.stats); const v = k => s[k] ? (s[k].value ?? parseFloat(s[k].displayValue)) : null; const dv = k => s[k] ? s[k].displayValue : ''; const t = en.team; rows[String(t.id)] = { id: String(t.id), abbr: t.abbreviation, name: t.displayName, short: t.shortDisplayName || t.name, group: node.name || grp, w: v('wins') || 0, l: v('losses') || 0, diff: v('differential') ?? v('pointDifferential') ?? ((v('avgPointsFor') != null && v('avgPointsAgainst') != null) ? v('avgPointsFor') - v('avgPointsAgainst') : null), ppg: v('avgPointsFor'), opp: v('avgPointsAgainst'), streak: dv('streak'), l10: dv('Last Ten Games'), home: dv('Home'), road: dv('Road'), conf: dv('vs. Conf.') }; }); (node.children || []).forEach(c => walk(c, node.name)); }; walk(d, L.label);
+  const d = await soft(`${API2(L)}/standings${season ? '?season=' + season : ''}${L.standingsMode === 'conferences' ? (season ? '&' : '?') + `group=${L.standingsGroup || 50}&level=3` : ''}`);
+  const rows = {}; const walk = (node, grp) => { if (!node) return; if (node.standings && node.standings.entries) node.standings.entries.forEach(en => { const s = statMap(en.stats); const v = k => s[k] ? (s[k].value ?? parseFloat(s[k].displayValue)) : null; const dv = k => s[k] ? s[k].displayValue : ''; const t = en.team; rows[String(t.id)] = { id: String(t.id), abbr: t.abbreviation, name: t.displayName, short: t.shortDisplayName || t.name, group: node.name || grp, w: v('wins') || 0, l: v('losses') || 0, t: v('ties') || 0, diff: perGame(L, v('differential') ?? v('pointDifferential') ?? ((v('avgPointsFor') != null && v('avgPointsAgainst') != null) ? v('avgPointsFor') - v('avgPointsAgainst') : null), v), ppg: v('avgPointsFor') ?? perGame(L, v('pointsFor'), v, true), opp: v('avgPointsAgainst') ?? perGame(L, v('pointsAgainst'), v, true), streak: dv('streak'), l10: dv('Last Ten Games'), home: dv('Home'), road: dv('Road'), conf: dv('vs. Conf.') }; }); (node.children || []).forEach(c => walk(c, node.name)); }; walk(d, L.label);
   return rows;
 }
 async function rankings(L) { if (!L.hasRankings) return {}; const d = await soft(`${API(L)}/rankings`); const ap = d && d.rankings && (d.rankings.find(r => /AP/i.test(r.name)) || d.rankings[0]); const m = {}; (ap && ap.ranks || []).forEach(r => m[String(r.team.id)] = r.current); return m; }
@@ -47,8 +51,7 @@ async function initElo(L) {
     const [cur, rk] = await Promise.all([standings(L), rankings(L)]);
     for (const r of Object.values(cur)) { const base = POWER.test(r.group) ? 1700 : MID.test(r.group) ? 1520 : 1380; const boost = rk[r.id] ? 400 + (25 - rk[r.id]) * 6 : 0; elo[r.id] = { elo: Math.max(base, 1500 + boost), gp: 0, name: r.name, short: r.short, abbr: r.abbr, prior: rk[r.id] ? `preseason #${rk[r.id]}` : r.group }; }
   } else {
-    const yr = new Date().getUTCMonth() >= 6 ? new Date().getUTCFullYear() + 1 : new Date().getUTCFullYear();
-    const prev = await standings(L, L.key === 'wnba' ? yr - 1 : yr - 1);
+    const prev = await standings(L, seasonLabel(L) - 1);
     for (const r of Object.values(prev)) elo[r.id] = { elo: 1500 + (r.diff || 0) * 0.65 * L.eloPerPoint, gp: 0, name: r.name, short: r.short, abbr: r.abbr, prior: `last season ${r.diff > 0 ? '+' : ''}${(r.diff || 0).toFixed(1)}` };
   }
   return elo;
@@ -69,7 +72,8 @@ function update(L, st, g, P = paramsOf(L)) {
   const margin = g.home.score - g.away.score; const aH = margin > 0 ? 1 : 0;
   const winnerDiff = margin > 0 ? (H.elo + hcaElo - A.elo) : (A.elo - H.elo - hcaElo);
   const mov = Math.log(Math.abs(margin) + 1) * (2.2 / (winnerDiff * 0.001 + 2.2));
-  const k = P.k * (H.gp < 10 || A.gp < 10 ? 1.4 : 1);   // settle faster early in the season
+  const early = L.sport === 'football' ? 4 : L.sport === 'baseball' ? 30 : 10;
+  const k = P.k * (H.gp < early || A.gp < early ? 1.4 : 1);   // settle faster early in the season
   const delta = k * mov * (aH - eH);
   H.elo += delta; A.elo -= delta; H.gp++; A.gp++;
 }
@@ -93,7 +97,7 @@ async function runRatings() {
       const finals = games.filter(g => g.state === 'post' && g.home.score != null && g.away.score != null && !st.processed[g.id]);
       // pregame forecasts for the whole day first (ratings as they stood that morning), then update
       const pre = finals.map(g => ({ g, f: pregame(L, st, g, prev, P) }));
-      let budget = L.standingsMode === 'conferences' ? 60 : 40;
+      let budget = d < addDays(yday, -45) ? 0 : L.standingsMode === 'conferences' ? 60 : 40;   // deep backfills (a league added mid-season) skip ESPN's pregame numbers
       for (const { g, f } of pre) {
         let ep = null, line = null;
         if (budget > 0) { budget--; const s = await soft(`${API(L)}/summary?event=${g.id}`); // after a final, ESPN drops `predictor` but keeps the win-probability trace; its first point is the pregame number
@@ -167,11 +171,12 @@ async function runTune() {
     games.forEach(g => { g.home.score = g.hs; g.away.score = g.as; });
     const prevP = readJson(`data/${lk}/params.json`, null);
     const D = DEFAULTS(L); const cur = { hca: prevP ? prevP.hca : D.hca, b2b: prevP ? prevP.b2b : D.b2b, sd: prevP ? prevP.sd : D.sd, k: prevP ? prevP.k : D.k };
-    const n = games.length; const minN = lk === 'nba' ? 60 : lk === 'wnba' ? 40 : 150;
+    const n = games.length; const minN = L.tuneAt || (lk === 'nba' ? 60 : lk === 'wnba' ? 40 : 150);
     const hist = (prevP && prevP.history) || [];
     if (n < minN) { const out = { ...cur, calib: prevP ? prevP.calib || null : null, tunedAt: new Date().toISOString(), n, tuneAt: minN, note: `waiting for ${minN} games before tuning`, history: hist }; writeJson(`data/${lk}/params.json`, out); console.log(lk, `${n} games, tuning starts at ${minN}`); continue; }
     const base = replay(L, st.init, games, cur).brier;
-    const steps = { hca: [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5], b2b: [0, 0.5, 1, 1.5, 2, 2.5], sd: [L.sd - 3, L.sd - 2, L.sd - 1, L.sd, L.sd + 1, L.sd + 2, L.sd + 3], k: [D.k * 0.6, D.k * 0.8, D.k, D.k * 1.25, D.k * 1.5].map(v => Math.round(v)) };
+    const bb = L.sport === 'baseball';
+    const steps = { hca: bb ? [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.7, 0.9] : [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5], b2b: L.sport === 'basketball' ? [0, 0.5, 1, 1.5, 2, 2.5] : [0], sd: (bb ? [0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3].map(m => +(L.sd * m).toFixed(1)) : [L.sd - 3, L.sd - 2, L.sd - 1, L.sd, L.sd + 1, L.sd + 2, L.sd + 3]), k: [D.k * 0.6, D.k * 0.8, D.k, D.k * 1.25, D.k * 1.5].map(v => Math.max(1, Math.round(v))) };
     let best = { P: cur, brier: base };
     for (const hca of steps.hca) for (const b2b of steps.b2b) for (const k of steps.k) {
       const r = replay(L, st.init, games, { hca, b2b, sd: cur.sd, k });
@@ -181,7 +186,7 @@ async function runTune() {
     // learn gradually: move part of the way toward the best mix, more as the sample grows; cap the move per night
     const w = Math.min(1, n / (minN * 6));
     const stepTo = (from, to, cap, dp) => +Math.max(from - cap, Math.min(from + cap, from + (to - from) * w)).toFixed(dp);
-    const next = { hca: stepTo(cur.hca, best.P.hca, 0.5, 1), b2b: stepTo(cur.b2b, best.P.b2b, 0.5, 1), sd: stepTo(cur.sd, best.P.sd, 1, 1), k: Math.round(stepTo(cur.k, best.P.k, 4, 0)) };
+    const next = { hca: stepTo(cur.hca, best.P.hca, bb ? 0.1 : 0.5, bb ? 2 : 1), b2b: stepTo(cur.b2b, best.P.b2b, 0.5, 1), sd: stepTo(cur.sd, best.P.sd, bb ? 0.3 : 1, 1), k: Math.round(stepTo(cur.k, best.P.k, bb ? 1 : 4, 0)) };
     const final = replay(L, st.init, games, next);
     const calib = n >= minN * 2 ? fitCalib(final.out) : null;
     const brierCal = calib ? final.out.reduce((s, x) => s + (x.y - calibrate(x.p, calib)) ** 2, 0) / final.out.length : final.brier;
@@ -247,7 +252,7 @@ async function runContext() {
     const b2b = new Set(((yday && yday.events) || []).flatMap(e => e.competitions[0].competitors.map(c => String(c.team.id))));
     const injBy = {}; ((inj && inj.injuries) || []).forEach(t => (t.injuries || []).forEach(x => { const ab = x.athlete && x.athlete.team && String(x.athlete.team.id); if (ab) (injBy[ab] ||= []).push({ player: x.athlete.displayName, pos: x.athlete.position && x.athlete.position.abbreviation, status: x.status, note: (x.shortComment || '').slice(0, 200) }); }));
     const st = { elo: (rt && rt.teams) || {} }; const P = paramsOf(L);
-    const score = g => { let s = 0; const fav = id => L.favs.includes(id); if (fav(g.home.id) || fav(g.away.id)) s += 100; if (lk === 'nba') s += 50; if (g.home.rank && g.away.rank) s += 40 + (50 - g.home.rank - g.away.rank); else if (g.home.rank || g.away.rank) { const r = g.home.rank || g.away.rank; s += lk === 'ncaaw' && r <= 10 ? 25 : 10; } return s; };
+    const score = g => { let s = 0; const fav = id => L.favs.includes(id); if (fav(g.home.id) || fav(g.away.id)) s += 100; s += ({ nba: 50, nfl: 60, mlb: 30, wnba: 30, ncaaf: 15, ncaam: 10, ncaaw: 5, ncaab: 0 })[lk] || 0; if (/playoff|world series|championship|bowl|final/i.test(g.note || '')) s += 40; if (g.home.rank && g.away.rank) s += 40 + (50 - g.home.rank - g.away.rank); else if (g.home.rank || g.away.rank) { const r = g.home.rank || g.away.rank; s += lk === 'ncaaw' && r <= 10 ? 25 : 10; } return s; };
     for (const g of games) {
       const f = pregame(L, st, g, b2b, P);
       const team = s => ({ homeAway: s === g.home ? 'home' : 'away', abbr: s.abbr, name: s.name, record: s.rec, apRank: s.rank, elo: st.elo[s.id] ? Math.round(st.elo[s.id].elo) : null, standing: cur[s.id] ? { conference: cur[s.id].group, record: `${cur[s.id].w}-${cur[s.id].l}`, confRecord: cur[s.id].conf, ppg: cur[s.id].ppg, oppPpg: cur[s.id].opp, margin: cur[s.id].diff, streak: cur[s.id].streak, last10: cur[s.id].l10, home: cur[s.id].home, road: cur[s.id].road } : null, playedYesterday: b2b.has(s.id), seasonLeaders: s.leaders.map(l => `${l.name}: ${l.who} ${l.val}`), injuries: injBy[s.id] || [] });

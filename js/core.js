@@ -2,7 +2,7 @@
 (function () {
 'use strict';
 const HW = window.HW;
-const { LEAGUES, ORDER, ESPN, TZ } = HW;
+const { LEAGUES, ORDER, SPORTS, ESPN, TZ } = HW;
 
 /* ---------- small utilities ---------- */
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -47,7 +47,8 @@ function erf(x) { const s = Math.sign(x); x = Math.abs(x); const t = 1 / (1 + 0.
 const Phi = z => 0.5 * (1 + erf(z / Math.SQRT2));
 const store = { get(k, d) { try { const v = localStorage.getItem('hw:' + k); return v == null ? d : JSON.parse(v); } catch { return d; } }, set(k, v) { try { localStorage.setItem('hw:' + k, JSON.stringify(v)); } catch { } } };
 const API = L => ESPN.site + L.path, API2 = L => ESPN.v2 + L.path, WEB = L => ESPN.web + L.path;
-const logoUrl = (L, abbr) => `https://a.espncdn.com/i/teamlogos/${L.key.startsWith('ncaa') ? 'ncaa' : L.path}/500/${String(abbr || '').toLowerCase()}.png`;
+const logoUrl = (L, abbr) => `https://a.espncdn.com/i/teamlogos/${L.logo}/500/${String(abbr || '').toLowerCase()}.png`;
+const sportOf = L => SPORTS.find(s => s.leagues.includes(L.key)) || SPORTS[0];
 function seasonYear() { const now = new Date(); return now.getUTCMonth() >= 6 ? now.getUTCFullYear() + 1 : now.getUTCFullYear(); }
 
 /* ---------- favorites (defaults from config, editable per viewer) ---------- */
@@ -90,8 +91,16 @@ function parseEvent(e, L) {
     venue: c.venue && c.venue.fullName, city: c.venue && c.venue.address && [c.venue.address.city, c.venue.address.state].filter(Boolean).join(', '),
     tv: tvOf(c), neutral: !!c.neutralSite, confGame: !!c.conferenceCompetition,
     note: (c.notes && c.notes[0] && c.notes[0].headline) || (e.season && e.season.slug === 'post-season' ? 'Postseason' : ''),
-    headline: c.headlines && c.headlines[0] && (c.headlines[0].shortLinkText || c.headlines[0].description) || ''
+    headline: c.headlines && c.headlines[0] && (c.headlines[0].shortLinkText || c.headlines[0].description) || '',
+    sit: situationOf(c, L, t.state)
   };
+}
+/* live situation: down and distance with the ball (football), outs and runners (baseball); null otherwise */
+function situationOf(c, L, state) {
+  const s = c.situation; if (!s || state !== 'in') return null;
+  if (L.sport === 'football') { const txt = s.shortDownDistanceText || s.downDistanceText || ''; const poss = s.possession ? String(s.possession) : ''; return txt || poss ? { text: txt, short: txt, poss, redzone: !!s.isRedZone } : null; }
+  if (L.sport === 'baseball') { const on = [s.onFirst, s.onSecond, s.onThird].map(Boolean); const outs = s.outs != null ? s.outs : null; return { text: `${outs == null ? '' : outs + ' out'}${on.some(Boolean) ? (outs == null ? '' : ' · ') + ['1st', '2nd', '3rd'].filter((_, i) => on[i]).join(', ') + ' on' : ''}`, short: outs == null ? '' : outs + ' out', on, outs, balls: s.balls, strikes: s.strikes }; }
+  return null;
 }
 const isLive = g => g.state === 'in';
 const isFav = g => favs.has(g.lk, g.home.id) || favs.has(g.lk, g.away.id);
@@ -103,26 +112,31 @@ function interest(g) { let s = 0; if (isFav(g)) s += 100; if (g.home.rank && g.a
 /* ---------- data access ---------- */
 async function scoreboard(L, ymd, ttl) {
   const t = todayCT();
-  const d = await j(`${API(L)}/scoreboard?dates=${compact(ymd)}${L.sbParams}`, ttl ?? (ymd === t ? 25000 : (ymd < t ? 3600000 : 300000)));
+  // football is a weekly sport: the "today" slate is the current week's games (ESPN's default scoreboard); other dates still work by day
+  const q = L.weekly && ymd === t ? `${API(L)}/scoreboard?${L.sbParams.replace(/^&/, '')}` : `${API(L)}/scoreboard?dates=${compact(ymd)}${L.sbParams}`;
+  const d = await j(q, ttl ?? (ymd === t ? 25000 : (ymd < t ? 3600000 : 300000)));
   return (d.events || []).map(e => parseEvent(e, L)).sort((a, b) => (order(a) - order(b)) || (new Date(a.date) - new Date(b.date)));
 }
 function statMap(stats) { const s = {}; (stats || []).forEach(x => { if (x.name) s[x.name] = x; if (x.type) s[x.type] = s[x.type] || x; if (x.displayName) s[x.displayName] = s[x.displayName] || x; if (x.abbreviation) s[x.abbreviation] = s[x.abbreviation] || x; }); return s; }
 function parseStandingRow(en, L, grp) {
   const s = statMap(en.stats); const val = k => s[k] ? (s[k].value ?? parseFloat(s[k].displayValue)) : null; const dv = k => s[k] ? s[k].displayValue : '';
   const t = en.team || {};
-  const w = val('wins') || 0, l = val('losses') || 0;
+  const w = val('wins') || 0, l = val('losses') || 0, ties = val('ties') || 0;
+  const gp = w + l + ties;
+  let diff = val('differential') ?? val('pointDifferential') ?? (val('avgPointsFor') != null && val('avgPointsAgainst') != null ? val('avgPointsFor') - val('avgPointsAgainst') : null);
+  let ppg = val('avgPointsFor'), opp = val('avgPointsAgainst');
+  if (L.diffIsTotal) { if (diff != null && gp) diff = +(diff / gp).toFixed(1); if (ppg == null && val('pointsFor') != null && gp) ppg = +(val('pointsFor') / gp).toFixed(1); if (opp == null && val('pointsAgainst') != null && gp) opp = +(val('pointsAgainst') / gp).toFixed(1); }
   return {
     id: String(t.id), abbr: t.abbreviation, name: t.displayName, short: t.shortDisplayName || t.name, loc: t.location,
     logo: (t.logos && t.logos[0] && t.logos[0].href) || logoUrl(L, t.abbreviation),
-    w, l, pct: dv('winPercent') || (w + l ? (w / (w + l)).toFixed(3).replace(/^0/, '') : ''), gb: dv('gamesBehind'),
-    home: dv('Home'), road: dv('Road') || dv('Away'), l10: dv('Last Ten Games'), strk: dv('streak'), conf: dv('vs. Conf.') || dv('vsConf'),
-    diff: val('differential') ?? val('pointDifferential') ?? (val('avgPointsFor') != null && val('avgPointsAgainst') != null ? val('avgPointsFor') - val('avgPointsAgainst') : null),
-    ppg: val('avgPointsFor'), opp: val('avgPointsAgainst'), seed: val('playoffSeed') || null,
+    w, l, t: ties, pct: dv('winPercent') || (w + l ? (w / (w + l)).toFixed(3).replace(/^0/, '') : ''), gb: dv('gamesBehind'),
+    home: dv('Home'), road: dv('Road') || dv('Away'), l10: dv('Last Ten Games'), strk: dv('streak'), conf: dv('vs. Conf.') || dv('vsConf') || dv('vs. Div.'),
+    diff, ppg, opp, seed: val('playoffSeed') || null,
     group: grp.name, groupAbbr: grp.abbr
   };
 }
 async function standings(L, season) {
-  const url = `${API2(L)}/standings${season ? '?season=' + season : ''}${L.standingsMode === 'conferences' ? (season ? '&' : '?') + 'group=50&level=3' : ''}`;
+  const url = `${API2(L)}/standings${season ? '?season=' + season : ''}${L.standingsMode === 'conferences' ? (season ? '&' : '?') + `group=${L.standingsGroup || 50}&level=3` : ''}`;
   const d = await j(url, 600000);
   const groups = [], byId = {};
   const addGroup = (name, abbr, entries) => {
@@ -173,6 +187,13 @@ function starOut(L, side, ctx) {
   if (!ctx.inj || !ctx.inj.byTeam[side.id]) return null;
   const out = ctx.inj.byTeam[side.id].list.filter(x => /out|suspen/i.test(x.status || ''));
   if (!out.length) return null;
+  if (L.sport === 'baseball') return null;   // IL moves are mostly a wash; the starting pitcher matters more and is ESPN's probable, not an injury
+  if (L.sport === 'football') {               // a starting quarterback out is worth about four points; another listed leader about one
+    const lead = {}; (side.leaders || []).forEach(l => { const a = l.leaders && l.leaders[0]; if (a && a.athlete) lead[a.athlete.displayName] = l.name || ''; });
+    let total = 0; const names = [];
+    out.forEach(x => { const n = x.athlete && x.athlete.displayName; if (!n || !lead[n]) return; total += /pass/i.test(lead[n]) ? 4 : 1.2; names.push(n.split(' ').pop()); });
+    return names.length ? { name: names.join(', '), names, pts: -Math.min(6, total) } : null;
+  }
   const ppgOf = n => { const r = ctx.ppg && ctx.ppg[(n || '').toLowerCase()]; return r && r.teamId === side.id ? r.pts : null; };
   const L1 = (side.leaders || []).find(l => /points/i.test(l.name)); const top = L1 && L1.leaders && L1.leaders[0];
   let total = 0; const names = [];
@@ -194,26 +215,46 @@ function forecast(L, g, ctx) {
   const margin = (H.rating - A.rating) + hca + (restH - restA) + (H.form - A.form) + inj;
   let p = calibrate(Phi(margin / P.sd), P.calib), live = false;
   if (g.state === 'in' && g.home.score != null && g.away.score != null) {
-    const per = g.period || 1; const [mm, ss] = String(g.clock || '0:00').split(':').map(Number);
-    const left = isFinite(mm) ? (mm + (ss || 0) / 60) : 0;
-    const regPeriods = L.minutes === 48 ? 4 : 2, perLen = L.minutes / regPeriods;
-    const rem = per <= regPeriods ? (regPeriods - per) * perLen + left : left;
-    const frac = Math.max(rem, 0) / L.minutes;
+    const frac = fracLeft(L, g);
     const lead = g.home.score - g.away.score;
     const sd = (P.sd + 2) * Math.sqrt(frac) + 1.5;
     p = Phi((lead + margin * frac) / sd); live = true;
   }   // finals keep the pregame estimate so cards can show hit/miss
   return { pHome: p, margin, live, H, A, hca, restH, restA, soH, soA, source: H.source === 'elo' && A.source === 'elo' ? 'elo' : 'margin' };
 }
+/* share of the game still to be played, by sport */
+function fracLeft(L, g) {
+  const per = g.period || 1;
+  if (L.sport === 'baseball') return Math.max(0, (L.periods - Math.min(per, L.periods) + 0.5)) / L.periods;
+  const [mm, ss] = String(g.clock || '0:00').split(':').map(Number);
+  const left = isFinite(mm) ? (mm + (ss || 0) / 60) : 0;
+  const perLen = L.minutes / L.periods;
+  const rem = per <= L.periods ? (L.periods - per) * perLen + left : left;
+  return Math.max(rem, 0) / L.minutes;
+}
 const ctxCache = new Map();
 async function forecastCtx(L, ymd) {
   const k = L.key + ymd; const hit = ctxCache.get(k); if (hit && Date.now() - hit.t < 300000) return hit.v;
-  const [rt, cur, yday, inj, lp, params] = await Promise.all([ratings(L), standings(L).catch(() => null), scoreboard(L, addDays(ymd, -1)).catch(() => []), injuries(L), L.hasInjuries ? leaguePlayers(L).catch(() => null) : null, jSoft(`data/${L.key}/params.json?d=${todayCT()}`, 900000)]);
+  const [rt, cur, yday, inj, lp, params] = await Promise.all([ratings(L), standings(L).catch(() => null), scoreboard(L, addDays(ymd, -1)).catch(() => []), injuries(L), L.hasInjuries && L.sport === 'basketball' ? leaguePlayers(L).catch(() => null) : null, jSoft(`data/${L.key}/params.json?d=${todayCT()}`, 900000)]);
   const prior = rt ? null : await priorStandings(L);
   const b2b = new Set(); yday.forEach(g => { if (g.state !== 'pre') { b2b.add(g.home.id); b2b.add(g.away.id); } });
   const ppg = {}; if (lp) lp.rows.forEach(r => { ppg[(r.name || '').toLowerCase()] = { pts: r.pts, teamId: r.teamId }; });
   const v = { ratings: rt, cur, prior, b2b, inj, ppg, params };
   ctxCache.set(k, { t: Date.now(), v }); return v;
+}
+
+/* ---------- stat categories (football, baseball): the API's own columns ---------- */
+const STAT_CATS = {
+  football: [['passing', 'Passing', 'passing.passingYards:desc'], ['rushing', 'Rushing', 'rushing.rushingYards:desc'], ['receiving', 'Receiving', 'receiving.receivingYards:desc'], ['defensive', 'Defense', 'defensive.totalTackles:desc']],
+  baseball: [['batting', 'Batting', 'batting.homeRuns:desc'], ['pitching', 'Pitching', 'pitching.ERA:asc']]
+};
+async function statCategory(L, cat, sort, limit = 50, season) {
+  const u = `${WEB(L)}/statistics/byathlete?region=us&lang=en&contentorigin=espn&isqualified=true&page=1&limit=${limit}&category=${cat}&sort=${encodeURIComponent(sort)}${season ? `&season=${season}&seasontype=2` : ''}`;
+  const d = await jSoft(u, 900000); if (!d || !d.athletes) return null;
+  const meta = (d.categories || []).find(c => c.name === cat) || (d.categories || [])[0] || {};
+  const labels = meta.labels || meta.names || [], names = meta.names || [], full = meta.displayNames || meta.descriptions || [];
+  const rows = (d.athletes || []).map(a => { const c = (a.categories || []).find(x => x.name === cat) || (a.categories || [])[0] || {}; const at = a.athlete || {}; return { id: String(at.id), name: at.displayName, team: at.teamShortName || at.teamName || '', teamId: String(at.teamId || ''), pos: at.position && at.position.abbreviation || '', img: at.headshot && at.headshot.href, vals: c.displayValues || (c.values || []).map(v => v == null ? '' : String(v)), nums: c.values || [] }; });
+  return { cat, labels, names, full, rows, label: (d.requestedSeason && (d.requestedSeason.displayName || d.requestedSeason.year)) || (d.currentSeason && d.currentSeason.displayName) || '' };
 }
 
 /* ---------- league player list ---------- */
@@ -241,6 +282,6 @@ const S = { today: {}, todayYmd: null, lastOk: 0, err: false, timer: null, route
 ORDER.forEach(k => S.today[k] = []);
 const allToday = () => ORDER.flatMap(k => S.today[k]);
 
-Object.assign(HW, { esc, j, jSoft, cache, todayCT, addDays, compact, expand, ymdOf, dayLabel, relDay, tip, dateShort, timeCT, ago, pct, sign, ordinal, hx, darkOf, Phi, store, API, API2, WEB, logoUrl, seasonYear, favs,
+Object.assign(HW, { sportOf, fracLeft, statCategory, STAT_CATS, esc, j, jSoft, cache, todayCT, addDays, compact, expand, ymdOf, dayLabel, relDay, tip, dateShort, timeCT, ago, pct, sign, ordinal, hx, darkOf, Phi, store, API, API2, WEB, logoUrl, seasonYear, favs,
   parseEvent, isLive, isFav, isRanked, order, interest, scoreboard, standings, priorStandings, rankings, ratings, record, params, aiRecord, aiFor, aiEntry, injuries, forecast, forecastCtx, leaguePlayers, S, allToday });
 })();
