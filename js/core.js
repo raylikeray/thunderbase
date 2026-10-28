@@ -289,27 +289,27 @@ const NAT = {
 const any = (...res) => ({ test: n => res.some(r => r.test(n)) });
 const SERVICES = {
   // live-TV bundles
-  sling:     { label: 'Sling TV', short: 'Sling', web: 'https://watch.sling.com', android: 'com.sling', host: 'watch.sling.com/', bundle: true, channels: any(NAT.espnFam, NAT.cable, NAT.bcast) },
-  youtubetv: { label: 'YouTube TV', short: 'YouTube TV', web: 'https://tv.youtube.com', android: 'com.google.android.youtube.tvunplugged', host: 'tv.youtube.com/', bundle: true, channels: any(NAT.espnFam, NAT.cable, NAT.bcast, /^(CBS|ION|The CW|CW)$/i) },
-  hululive:  { label: 'Hulu + Live TV', short: 'Hulu', web: 'https://www.hulu.com/live-tv', android: 'com.hulu.plus', host: 'www.hulu.com/live-tv', bundle: true, channels: any(NAT.espnFam, NAT.cable, NAT.bcast, /^(CBS|ION|The CW|CW|ESPN\+)$/i) },
-  fubo:      { label: 'Fubo', short: 'Fubo', web: 'https://www.fubo.tv', android: 'tv.fubo.mobile', host: 'www.fubo.tv/', bundle: true, channels: any(NAT.espnFam, /^(NBA ?TV|FS1|FS2|USA( Network)?|NFL Network|NFLN|NFL RedZone|MLB Network|MLBN|BTN|Big Ten Network|CBSSN|CBS Sports Network|CBS|ION|The CW|CW)$/i, NAT.bcast, NAT.regional) },
-  directv:   { label: 'DirecTV Stream', short: 'DirecTV', web: 'https://stream.directv.com', android: 'com.att.tv', host: 'stream.directv.com/', bundle: true, channels: any(NAT.espnFam, NAT.cable, NAT.bcast, /^(CBS|ION|The CW|CW)$/i, NAT.regional) },
+  sling:     { label: 'Sling TV', short: 'Sling', web: 'https://watch.sling.com', android: 'com.sling', hosts: ['watch.sling.com/1/browse/sports', 'watch.sling.com/', 'www.sling.com/'], schemes: ['slingtv', 'sling'], bundle: true, channels: any(NAT.espnFam, NAT.cable, NAT.bcast) },
+  youtubetv: { label: 'YouTube TV', short: 'YouTube TV', web: 'https://tv.youtube.com', android: 'com.google.android.youtube.tvunplugged', hosts: ['tv.youtube.com/'], schemes: ['youtubetv'], bundle: true, channels: any(NAT.espnFam, NAT.cable, NAT.bcast, /^(CBS|ION|The CW|CW)$/i) },
+  hululive:  { label: 'Hulu + Live TV', short: 'Hulu', web: 'https://www.hulu.com/live-tv', android: 'com.hulu.plus', hosts: ['www.hulu.com/live-tv', 'www.hulu.com/'], schemes: ['hulu'], bundle: true, channels: any(NAT.espnFam, NAT.cable, NAT.bcast, /^(CBS|ION|The CW|CW|ESPN\+)$/i) },
+  fubo:      { label: 'Fubo', short: 'Fubo', web: 'https://www.fubo.tv', android: 'tv.fubo.mobile', hosts: ['www.fubo.tv/'], schemes: ['fubotv', 'fubo'], bundle: true, channels: any(NAT.espnFam, /^(NBA ?TV|FS1|FS2|USA( Network)?|NFL Network|NFLN|NFL RedZone|MLB Network|MLBN|BTN|Big Ten Network|CBSSN|CBS Sports Network|CBS|ION|The CW|CW)$/i, NAT.bcast, NAT.regional) },
+  directv:   { label: 'DirecTV Stream', short: 'DirecTV', web: 'https://stream.directv.com', android: 'com.att.tv', hosts: ['stream.directv.com/'], schemes: ['dtvstream'], bundle: true, channels: any(NAT.espnFam, NAT.cable, NAT.bcast, /^(CBS|ION|The CW|CW)$/i, NAT.regional) },
   // networks' own apps and streamers
-  abc:       { label: 'ABC', short: 'ABC', web: 'https://abc.com/watch-live', android: 'com.disney.datg.videoplatforms.android.abc', host: 'abc.com/watch-live', match: /^ABC$/i },
-  espn:      { label: 'ESPN app', short: 'ESPN', web: 'https://www.espn.com/watch', android: 'com.espn.score_center', host: 'www.espn.com/watch', match: any(NAT.espnFam, /^(ESPN\+|SECN\+|ACCN\+|Big 12 Now|ABC)$/i) },
-  peacock:   { label: 'Peacock', short: 'Peacock', web: 'https://www.peacocktv.com/sports', android: 'com.peacocktv.peacockandroid', host: 'www.peacocktv.com/sports', match: /^(Peacock|NBC|USA( Network)?)$/i },
-  nbc:       { label: 'NBC', short: 'NBC', web: 'https://www.nbc.com/live', android: 'com.nbcuni.nbc', host: 'www.nbc.com/live', match: /^NBC$/i },
-  fox:       { label: 'FOX Sports', short: 'FOX', web: 'https://www.foxsports.com/live', android: 'com.foxsports.android', host: 'www.foxsports.com/live', match: /^(FOX|FS1|FS2|FOX Sports ?[12]?|FOX Deportes|FOX One|BTN|Big Ten Network)$/i },
-  paramount: { label: 'Paramount+', short: 'Paramount+', web: 'https://www.paramountplus.com/live-tv/', android: 'com.cbs.app', host: 'www.paramountplus.com/live-tv/', match: /^(CBS|Paramount\+|CBSSN|CBS Sports Network)$/i },
-  max:       { label: 'Max', short: 'Max', web: 'https://play.max.com', android: 'com.wbd.stream', host: 'play.max.com/', match: /^(TNT|TBS|truTV|Max|HBO Max|TNT Sports)$/i },
-  prime:     { label: 'Prime Video', short: 'Prime', web: 'https://www.amazon.com/primevideo', webBy: { basketball: 'https://www.amazon.com/nba', football: 'https://www.amazon.com/tnf' }, android: 'com.amazon.avod.thirdpartyclient', host: 'app.primevideo.com/', match: /^(Prime Video|Amazon Prime Video|Amazon|Prime)$/i },
-  netflix:   { label: 'Netflix', short: 'Netflix', web: 'https://www.netflix.com', android: 'com.netflix.mediaclient', host: 'www.netflix.com/', match: /^Netflix$/i },
-  appletv:   { label: 'Apple TV', short: 'Apple TV', web: 'https://tv.apple.com', android: 'com.apple.atve.androidtv.appletv', match: /^Apple TV\+?$/i },
-  nba:       { label: 'NBA app · League Pass', short: 'NBA app', web: 'https://www.nba.com/watch', android: 'com.nbaimd.gametime.nba2011', host: 'www.nba.com/watch', match: /^(NBA League Pass|NBA ?TV)$/i },
+  abc:       { label: 'ABC', short: 'ABC', web: 'https://abc.com/watch-live', android: 'com.disney.datg.videoplatforms.android.abc', hosts: ['abc.com/watch-live', 'abc.com/'], schemes: ['abc'], match: /^ABC$/i },
+  espn:      { label: 'ESPN app', short: 'ESPN', web: 'https://www.espn.com/watch', android: 'com.espn.score_center', hosts: ['www.espn.com/watch', 'www.espn.com/'], schemes: ['sportscenter'], match: any(NAT.espnFam, /^(ESPN\+|SECN\+|ACCN\+|Big 12 Now|ABC)$/i) },
+  peacock:   { label: 'Peacock', short: 'Peacock', web: 'https://www.peacocktv.com/sports', android: 'com.peacocktv.peacockandroid', hosts: ['www.peacocktv.com/sports', 'www.peacocktv.com/'], schemes: ['peacock'], match: /^(Peacock|NBC|USA( Network)?)$/i },
+  nbc:       { label: 'NBC', short: 'NBC', web: 'https://www.nbc.com/live', android: 'com.nbcuni.nbc', hosts: ['www.nbc.com/live', 'www.nbc.com/'], schemes: ['nbc'], match: /^NBC$/i },
+  fox:       { label: 'FOX Sports', short: 'FOX', web: 'https://www.foxsports.com/live', android: 'com.foxsports.android', hosts: ['www.foxsports.com/live', 'www.foxsports.com/'], schemes: ['foxsports'], match: /^(FOX|FS1|FS2|FOX Sports ?[12]?|FOX Deportes|FOX One|BTN|Big Ten Network)$/i },
+  paramount: { label: 'Paramount+', short: 'Paramount+', web: 'https://www.paramountplus.com/live-tv/', android: 'com.cbs.app', hosts: ['www.paramountplus.com/live-tv/', 'www.paramountplus.com/'], schemes: ['cbsaa', 'paramountplus'], match: /^(CBS|Paramount\+|CBSSN|CBS Sports Network)$/i },
+  max:       { label: 'Max', short: 'Max', web: 'https://play.max.com', android: 'com.wbd.stream', hosts: ['play.max.com/', 'www.max.com/'], schemes: ['hbomax', 'max'], match: /^(TNT|TBS|truTV|Max|HBO Max|TNT Sports)$/i },
+  prime:     { label: 'Prime Video', short: 'Prime', web: 'https://www.amazon.com/primevideo', webBy: { basketball: 'https://www.amazon.com/nba', football: 'https://www.amazon.com/tnf' }, android: 'com.amazon.avod.thirdpartyclient', hosts: ['app.primevideo.com/', 'www.amazon.com/gp/video/storefront'], schemes: ['aiv'], match: /^(Prime Video|Amazon Prime Video|Amazon|Prime)$/i },
+  netflix:   { label: 'Netflix', short: 'Netflix', web: 'https://www.netflix.com', android: 'com.netflix.mediaclient', hosts: ['www.netflix.com/'], schemes: ['nflx'], match: /^Netflix$/i },
+  appletv:   { label: 'Apple TV', short: 'Apple TV', web: 'https://tv.apple.com', android: 'com.apple.atve.androidtv.appletv', hosts: ['tv.apple.com/'], schemes: ['videos'], match: /^Apple TV\+?$/i },
+  nba:       { label: 'NBA app · League Pass', short: 'NBA app', web: 'https://www.nba.com/watch', android: 'com.nbaimd.gametime.nba2011', hosts: ['www.nba.com/watch', 'www.nba.com/'], schemes: ['gametime'], match: /^(NBA League Pass|NBA ?TV)$/i },
   wnba:      { label: 'WNBA app · League Pass', short: 'WNBA app', web: 'https://www.wnba.com/watch', match: /^(WNBA League Pass|ION)$/i },
-  nfl:       { label: 'NFL+', short: 'NFL+', web: 'https://www.nfl.com/plus/', android: 'com.gotv.nflgamecenter.us.lite', host: 'www.nfl.com/plus/', match: /^(NFL Network|NFLN|NFL\+|NFL RedZone)$/i },
-  youtube:   { label: 'YouTube · Sunday Ticket', short: 'YouTube', web: 'https://www.youtube.com', android: 'com.google.android.youtube', host: 'www.youtube.com/', match: /^(YouTube|NFL Sunday Ticket)$/i },
-  mlb:       { label: 'MLB.TV', short: 'MLB.TV', web: 'https://www.mlb.com/tv', android: 'com.bamnetworks.mobile.android.gameday.atbat', host: 'www.mlb.com/tv', match: /^(MLB\.TV|MLB Network|MLBN)$/i },
+  nfl:       { label: 'NFL+', short: 'NFL+', web: 'https://www.nfl.com/plus/', android: 'com.gotv.nflgamecenter.us.lite', hosts: ['www.nfl.com/plus/', 'www.nfl.com/'], schemes: ['nflmobile', 'nfl'], match: /^(NFL Network|NFLN|NFL\+|NFL RedZone)$/i },
+  youtube:   { label: 'YouTube · Sunday Ticket', short: 'YouTube', web: 'https://www.youtube.com', android: 'com.google.android.youtube', hosts: ['www.youtube.com/'], schemes: ['youtube', 'vnd.youtube'], match: /^(YouTube|NFL Sunday Ticket)$/i },
+  mlb:       { label: 'MLB.TV', short: 'MLB.TV', web: 'https://www.mlb.com/tv', android: 'com.bamnetworks.mobile.android.gameday.atbat', hosts: ['www.mlb.com/tv', 'www.mlb.com/'], schemes: ['atbat'], match: /^(MLB\.TV|MLB Network|MLBN)$/i },
   cw:        { label: 'The CW', short: 'CW', web: 'https://www.cwtv.com/live', match: /^(The CW|CW)$/i },
   ion:       { label: 'ION', short: 'ION', web: 'https://iontelevision.com', match: /^ION$/i },
   regional:  { label: 'Regional network', short: 'Regional', web: '', match: NAT.regional }
@@ -324,22 +324,24 @@ const SERVICE_GROUPS = [
 ];
 const myServices = () => (store.get('watch', []) || []).filter(id => SERVICES[id]);
 const IS_ANDROID = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent || '');
-/* the href for a service: on Android an intent that opens the app (falls back to the web page); elsewhere the web page */
-function serviceHref(id, L, webOverride) {
-  const s = SERVICES[id]; if (!s) return webOverride || '';
-  const web = webOverride || (s.webBy && L && s.webBy[L.sport]) || s.web;
-  // launch the app itself (its main activity), which works whether or not the app registers web deep links; the web page is the fallback when it isn't installed
-  if (IS_ANDROID && s.android) return `intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=${s.android};S.browser_fallback_url=${encodeURIComponent(web)};end`;
-  return web;
+/* the service's web page (the anchor's href everywhere; on Android the click handler tries the app first) */
+function serviceHref(id, L, webOverride) { const s = SERVICES[id]; if (!s) return webOverride || ''; return webOverride || (s.webBy && L && s.webBy[L.sport]) || s.web; }
+/* Android app launches to try, in order: the app's own web hosts as intents aimed at its package, then its custom schemes.
+   Chrome only launches activities an app marks browsable, and each app claims different URLs, so the click handler walks
+   this list until the page loses focus (an app took over) and opens the web page if nothing does. */
+function launchTries(id) {
+  const s = SERVICES[id]; if (!s || !s.android) return [];
+  const pkg = s.android;
+  return [...(s.hosts || []).map(h => `intent://${h}#Intent;scheme=https;package=${pkg};end`), ...(s.schemes || []).map(sc => `intent://open#Intent;scheme=${sc};package=${pkg};end`)];
 }
 /* a game's watch options: the viewer's own services that carry it (their order), then the channel's own app */
 function watchFor(g, L) {
   if (!g || !g.tv) return [];
   const names = [...(g.tv.national || []), ...(g.tv.local || [])].filter(n => n && !/radio|sirius/i.test(n));
   if (!names.length) return [];
-  const out = []; const push = (id, net, web) => { if (!out.some(o => o.id === id)) out.push({ id, net, bundle: !!SERVICES[id].bundle, label: SERVICES[id].label, short: SERVICES[id].short, url: web || (SERVICES[id].webBy && SERVICES[id].webBy[L.sport]) || SERVICES[id].web, href: serviceHref(id, L, web), mine: myServices().includes(id) }); };
+  const out = []; const push = (id, net, web) => { if (!out.some(o => o.id === id)) out.push({ id, net, bundle: !!SERVICES[id].bundle, label: SERVICES[id].label, short: SERVICES[id].short, url: serviceHref(id, L, web), href: serviceHref(id, L, web), launch: IS_ANDROID && !!SERVICES[id].android, mine: myServices().includes(id) }); };
   myServices().forEach(id => { const s = SERVICES[id]; const net = names.find(n => (s.bundle ? s.channels : s.match).test(n)); if (net) push(id, net); });
-  names.forEach(n => { for (const [id, s] of Object.entries(SERVICES)) { if (s.bundle || !s.match.test(n)) continue; if (id === 'regional') { const r = REGIONAL.find(x => x[0].test(n)); if (r) { if (!out.some(o => o.url === r[2])) out.push({ id: 'regional', net: n, label: r[1], short: r[1], url: r[2], href: r[2], mine: false }); } } else push(id, n); break; } });
+  names.forEach(n => { for (const [id, s] of Object.entries(SERVICES)) { if (s.bundle || !s.match.test(n)) continue; if (id === 'regional') { const r = REGIONAL.find(x => x[0].test(n)); if (r) { if (!out.some(o => o.url === r[2])) out.push({ id: 'regional', net: n, label: r[1], short: r[1], url: r[2], href: r[2], launch: false, mine: false }); } } else push(id, n); break; } });
   return out.filter(o => o.href);
 }
 const watchLink = (name, L) => watchFor({ tv: { national: [name], local: [] } }, L)[0] || null;
@@ -349,6 +351,6 @@ const S = { today: {}, todayYmd: null, lastOk: 0, err: false, timer: null, route
 ORDER.forEach(k => S.today[k] = []);
 const allToday = () => ORDER.flatMap(k => S.today[k]);
 
-Object.assign(HW, { watchLink, watchFor, SERVICES, SERVICE_GROUPS, myServices, serviceHref, IS_ANDROID, sportOf, fracLeft, statCategory, STAT_CATS, esc, j, jSoft, cache, todayCT, addDays, compact, expand, ymdOf, dayLabel, relDay, tip, dateShort, timeCT, ago, pct, sign, ordinal, hx, darkOf, Phi, store, API, API2, WEB, logoUrl, seasonYear, favs,
+Object.assign(HW, { watchLink, watchFor, SERVICES, SERVICE_GROUPS, myServices, serviceHref, launchTries, IS_ANDROID, sportOf, fracLeft, statCategory, STAT_CATS, esc, j, jSoft, cache, todayCT, addDays, compact, expand, ymdOf, dayLabel, relDay, tip, dateShort, timeCT, ago, pct, sign, ordinal, hx, darkOf, Phi, store, API, API2, WEB, logoUrl, seasonYear, favs,
   parseEvent, isLive, isFav, isRanked, order, interest, scoreboard, standings, priorStandings, rankings, ratings, record, params, injuries, forecast, forecastCtx, leaguePlayers, S, allToday });
 })();

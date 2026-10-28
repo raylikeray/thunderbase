@@ -35,8 +35,8 @@ function fcText(g, f) {
   if (g.state === 'post') { const won = g.home.score > g.away.score ? g.home : g.away; const hit = won === fav; return { label: `${hit ? 'Hit' : 'Miss'} · ${esc(fav.abbr)} ${pct(p)}`, cls: hit ? 'hit' : 'miss', fill: p }; }
   return { label: `${esc(fav.abbr)} ${pct(p)}${f.live ? ' live' : ''}`, cls: '', fill: p };
 }
-/* intent:// links (Android app launch) must navigate the current tab; web links open a new one */
-const wOpen = w => w.href.startsWith('intent:') ? '' : ' target="_blank" rel="noopener"';
+/* on Android the click handler tries the service's app first (data-launch); elsewhere the web page opens in a new tab */
+const wOpen = w => w.launch ? ` data-launch="${esc(w.id)}" data-mine="${w.mine ? 1 : 0}"` : ' target="_blank" rel="noopener"';
 const wText = (w, net) => w.bundle ? `${esc(net || w.net)} · ${esc(w.short)}` : esc(net || w.net);
 function bug(g, f) {
   const L = LEAGUES[g.lk];

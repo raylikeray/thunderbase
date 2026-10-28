@@ -131,7 +131,23 @@ window.addEventListener('hashchange', () => {
 });
 
 /* ---------- delegated actions ---------- */
+/* Android: try to open the service's app, then fall back to its web page. Chrome ignores an intent no installed app
+   claims, so each attempt is followed by the next unless the page loses focus (the app came up). */
+function launchApp(id, web, mine) {
+  const tries = HW.launchTries(id); if (!tries.length) { location.href = web; return; }
+  const list = (mine ? tries : tries.slice(0, 2)).slice(0, 5);
+  let i = 0, done = false, timer = 0;
+  const stop = () => { done = true; clearTimeout(timer); document.removeEventListener('visibilitychange', onHide); window.removeEventListener('pagehide', onHide); window.removeEventListener('blur', onHide); };
+  const onHide = () => stop();
+  document.addEventListener('visibilitychange', onHide); window.addEventListener('pagehide', onHide); window.addEventListener('blur', onHide);
+  toast(`Opening ${HW.SERVICES[id] ? HW.SERVICES[id].short : 'the app'}…`);
+  const step = () => { if (done) return; if (i >= list.length) { stop(); toast(''); location.href = web; return; } location.href = list[i++]; timer = setTimeout(step, 900); };
+  step();
+}
+function toast(msg) { let t = document.getElementById('toast'); if (!t) { t = document.createElement('div'); t.id = 'toast'; t.className = 'toast'; t.setAttribute('role', 'status'); document.body.appendChild(t); } t.textContent = msg; t.classList.toggle('on', !!msg); clearTimeout(toast.t); if (msg) toast.t = setTimeout(() => t.classList.remove('on'), 6000); }
 document.addEventListener('click', e => {
+  const la = e.target.closest('a[data-launch]');
+  if (la) { e.preventDefault(); launchApp(la.dataset.launch, la.getAttribute('href'), la.dataset.mine === '1'); return; }
   const act = e.target.closest('[data-act]');
   if (act) {
     const a = act.dataset.act;
