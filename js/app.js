@@ -2,9 +2,10 @@
 (function () {
 'use strict';
 const HW = window.HW;
-const { LEAGUES, ORDER, todayCT, timeCT, scoreboard, isLive, S, allToday, cache, favs } = HW;
+const { LEAGUES, ORDER, todayCT, timeCT, scoreboard, isLive, S, allToday, cache, favs, store, params } = HW;
 const $main = document.getElementById('main');
 const $fresh = document.getElementById('fresh'), $freshText = document.getElementById('freshText');
+const $ltabs = document.getElementById('ltabs'), $subnav = document.getElementById('subnav');
 
 /* ---------- freshness ---------- */
 function paintFresh() {
@@ -13,9 +14,11 @@ function paintFresh() {
   $fresh.classList.toggle('live', live > 0 && !S.err && age < 120000);
   $fresh.classList.toggle('stale', !S.err && S.lastOk > 0 && age >= 120000 && live > 0);
   $fresh.classList.toggle('err', S.err);
-  if (S.err) $freshText.textContent = S.lastOk ? `Feed not responding · last ${new Date(S.lastOk).toLocaleTimeString('en-US', { timeZone: HW.TZ, hour: 'numeric', minute: '2-digit' })}` : 'Feed not responding · retrying';
+  if (S.err) $freshText.textContent = S.lastOk ? `Feed down · last ${new Date(S.lastOk).toLocaleTimeString('en-US', { timeZone: HW.TZ, hour: 'numeric', minute: '2-digit' })}` : 'Feed down · retrying';
   else if (!S.lastOk) $freshText.textContent = 'Loading…';
   else $freshText.textContent = `${live ? live + ' live · ' : ''}${timeCT(new Date(S.lastOk))} CT`;
+  const short = document.getElementById('freshShort'); if (short) short.textContent = S.err ? 'feed down' : !S.lastOk ? '…' : live ? `${live} live` : new Date(S.lastOk).toLocaleTimeString('en-US', { timeZone: HW.TZ, hour: 'numeric', minute: '2-digit' });
+  ORDER.forEach(k => { const n = S.today[k].filter(isLive).length; const a = $ltabs.querySelector(`[data-lk="${k}"]`); if (a) { a.classList.toggle('live', n > 0); a.setAttribute('data-live', n || ''); } });
 }
 setInterval(paintFresh, 5000);
 
@@ -39,43 +42,65 @@ async function tick() {
 document.addEventListener('visibilitychange', () => { if (!document.hidden) tick(); else clearTimeout(S.timer); });
 
 /* ---------- router ----------
-   #scores[/<league|all>[/<yyyymmdd>]]   #game/<league>/<id>   #standings[/<league>]   #rankings[/<league>]
-   #teams[/<league>]   #team/<league>/<id>   #players[/<league>]   #player/<league>/<id>
-   #forecasts[/<league|all>]   #news[/<league>[/<tab>]]   #record
-   Older links (#tonight, #nba/game-123, #game-123 …) are mapped onto these. */
+   #<league>                       the league's command center
+   #<league>/scores[/yyyymmdd]     #<league>/game/<id>
+   #<league>/standings             #<league>/rankings (college)
+   #<league>/teams                 #<league>/team/<id>
+   #<league>/players               #<league>/player/<id>
+   #<league>/forecasts             #<league>/injuries (NBA, WNBA)
+   #<league>/news[/moves]          #record
+   Older links (#scores/nba/…, #game/nba/123, #nba/game-123, #game-123 …) are mapped onto these. */
+const SECTIONS = ['center', 'scores', 'game', 'standings', 'rankings', 'teams', 'team', 'players', 'player', 'forecasts', 'injuries', 'news'];
+const { lkOf, remember } = HW.render;
 function parseHash() {
-  let h = decodeURIComponent((location.hash || '#scores').slice(1)).replace(/^\/+|\/+$/g, '');
-  if (!h || h === 'home' || h === 'tonight') return { name: 'scores', args: [] };
-  // legacy v2: nba, nba/games-20261024, nba/game-123, nba/team-25, nba/players, nba/wire-injuries …
-  let m = h.match(/^(nba|wnba|ncaam|ncaaw)(?:\/([a-z]+)(?:-([A-Za-z0-9]+))?)?$/);
-  if (m) { const lk = m[1], v = m[2] || 'scores', a = m[3]; const map = { tonight: 'scores', games: 'scores', game: 'game', standings: 'standings', rankings: 'rankings', teams: 'teams', team: 'team', players: 'players', player: 'player', forecasts: 'forecasts', wire: 'news' }; const n = map[v] || 'scores'; return { name: n, args: ['game', 'team', 'player'].includes(n) ? [lk, a] : [lk, a] }; }
-  // legacy v1: game-123, team-25, games-20261024, wire-injuries …
-  m = h.match(/^(games|game|standings|teams|team|players|player|forecasts|wire)(?:-([A-Za-z0-9]+))?$/);
-  if (m) { const map = { games: 'scores', wire: 'news' }; return { name: map[m[1]] || m[1], args: ['nba', m[2]] }; }
-  const parts = h.split('/');
-  const name = parts[0];
-  if (!HW.views[name]) return { name: 'scores', args: [] };
-  return { name, args: parts.slice(1) };
+  let h = decodeURIComponent((location.hash || '').slice(1)).replace(/^\/+|\/+$/g, '');
+  const LK = '(nba|wnba|ncaam|ncaaw)';
+  if (!h || h === 'home' || h === 'tonight' || h === 'scores' || h === 'forecasts') { const lk = lkOf(store.get('lk', 'nba')); return { lk, name: h === 'scores' || h === 'forecasts' ? h : 'center', args: [lk] }; }
+  if (h === 'record') return { lk: lkOf(store.get('lk', 'nba')), name: 'record', args: [] };
+  let m;
+  // v4: nba, nba/scores/20261028, nba/game/401…, ncaam/rankings …
+  if ((m = h.match(new RegExp(`^${LK}(?:/([a-z]+)(?:/([^/]+))?)?$`)))) { const lk = m[1], v = m[2] || 'center', a = m[3]; if (SECTIONS.includes(v)) return { lk, name: v, args: a ? [lk, a] : [lk] }; }
+  // v3: scores/nba/20261028, game/nba/401…, standings/nba, news/nba/injuries …
+  if ((m = h.match(new RegExp(`^(scores|game|standings|rankings|teams|team|players|player|forecasts|news)(?:/${LK}|/all)?(?:/([^/]+))?$`)))) { const name = m[1], lk = m[2] || lkOf(store.get('lk', 'nba')), a = m[3]; if (name === 'news' && a === 'injuries') return { lk, name: 'injuries', args: [lk] }; return { lk, name, args: a ? [lk, a] : [lk] }; }
+  // v2: nba/games-20261024, nba/game-123, nba/team-25, nba/wire-injuries …
+  if ((m = h.match(new RegExp(`^${LK}/([a-z]+)-([A-Za-z0-9]+)$`)))) { const lk = m[1]; const map = { games: 'scores', game: 'game', team: 'team', player: 'player', wire: m[3] === 'injuries' ? 'injuries' : 'news' }; const name = map[m[2]] || 'center'; return { lk, name, args: name === 'injuries' || name === 'center' ? [lk] : [lk, m[2] === 'wire' ? (m[3] === 'transactions' ? 'moves' : null) : m[3]].filter(Boolean) }; }
+  // v1: game-123, team-25, games-20261024 (NBA only)
+  if ((m = h.match(/^(games|game|standings|teams|team|players|player|forecasts|wire)(?:-([A-Za-z0-9]+))?$/))) { const map = { games: 'scores', wire: 'news' }; const name = map[m[1]] || m[1]; return { lk: 'nba', name, args: m[2] ? ['nba', m[2]] : ['nba'] }; }
+  { const lk = lkOf(store.get('lk', 'nba')); return { lk, name: 'center', args: [lk] }; }
 }
-function paintNav(name) {
+function paintNav(lk, name) {
+  const L = LEAGUES[lk];
+  $ltabs.querySelectorAll('a').forEach(a => { const on = a.dataset.lk === lk; a.classList.toggle('on', on); if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
   const sec = name === 'game' ? 'scores' : name === 'team' ? 'teams' : name === 'player' ? 'players' : name;
-  document.querySelectorAll('[data-nav]').forEach(a => a.classList.toggle('on', a.dataset.nav === sec));
+  const items = [['center', 'Center', `#${lk}`], ['scores', 'Scores', `#${lk}/scores`], L.hasRankings ? ['rankings', 'Rankings', `#${lk}/rankings`] : null, ['standings', 'Standings', `#${lk}/standings`], ['teams', 'Teams', `#${lk}/teams`], ['players', 'Players', `#${lk}/players`], ['forecasts', 'Forecasts', `#${lk}/forecasts`], L.hasInjuries ? ['injuries', 'Injuries', `#${lk}/injuries`] : null, ['news', 'News', `#${lk}/news`], ['record', 'Record', '#record']].filter(Boolean);
+  $subnav.innerHTML = items.map(([k, l, h]) => `<a href="${h}" class="${k === sec ? 'on' : ''}"${k === sec ? ' aria-current="page"' : ''}>${l}</a>`).join('') + `<span class="d" id="subd"></span>`;
+  params(L).then(P => { const d = document.getElementById('subd'); if (d && P) d.textContent = HW.render.tuneLine(P); }).catch(() => { });
+  // keep the active section in view on narrow screens
+  const on = $subnav.querySelector('a.on'); if (on && on.scrollIntoView) try { on.scrollIntoView({ block: 'nearest', inline: 'center' }); } catch { }
 }
 let navSeq = 0;
 async function route() {
   const r = parseHash();
   const seq = ++navSeq;
-  paintNav(r.name);
+  remember(r.lk); S.league = r.lk;
+  paintNav(r.lk, r.name);
   S.route = null;
   if (!S.lastOk && !S.err) await tick();
   try {
     const res = await HW.views[r.name](...r.args);
     if (seq === navSeq) S.route = res || null;
   } catch (e) { console.error(e); if (seq === navSeq) $main.innerHTML = HW.render.failMsg('this page'); }
-  const names = { scores: 'Scores', game: 'Game', standings: 'Standings', rankings: 'Rankings', teams: 'Teams', team: 'Team', players: 'Players', player: 'Player', forecasts: 'Forecasts', news: 'News', record: 'Our record' };
-  document.title = r.name === 'scores' && !r.args.length ? 'Hardwood' : `${names[r.name] || ''} · Hardwood`;
+  const names = { center: '', scores: 'Scores', game: 'Game', standings: 'Standings', rankings: 'Rankings', teams: 'Teams', team: 'Team', players: 'Players', player: 'Player', forecasts: 'Forecasts', injuries: 'Injuries', news: 'News', record: 'The record' };
+  document.title = r.name === 'center' ? `${LEAGUES[r.lk].label} · Hardwood` : r.name === 'record' ? 'The record · Hardwood' : `${LEAGUES[r.lk].label} ${names[r.name] || ''} · Hardwood`;
+  // in-page jump bar: highlight the module in view
+  const jump = document.querySelector('.jump');
+  if (jump && 'IntersectionObserver' in window) { const links = [...jump.querySelectorAll('a')]; const io = new IntersectionObserver(es => { es.forEach(en => { if (en.isIntersecting) links.forEach(a => a.classList.toggle('on', a.getAttribute('href') === '#' + en.target.id)); }); }, { rootMargin: '-120px 0px -60% 0px' }); links.forEach(a => { const el = document.getElementById(a.getAttribute('href').slice(1)); el && io.observe(el); }); }
 }
-window.addEventListener('hashchange', () => { window.scrollTo({ top: 0 }); $main.focus({ preventScroll: true }); route(); });
+window.addEventListener('hashchange', () => {
+  const h = location.hash;
+  if (/^#m-/.test(h)) { const el = document.getElementById(h.slice(1)); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); } history.replaceState(null, '', '#' + (S.league || 'nba')); return; }
+  window.scrollTo({ top: 0 }); $main.focus({ preventScroll: true }); route();
+});
 
 /* ---------- delegated actions ---------- */
 document.addEventListener('click', e => {
@@ -90,6 +115,8 @@ document.addEventListener('click', e => {
     if (a === 'fav') { const on = favs.toggle(act.dataset.lk, act.dataset.id); act.textContent = on ? '★ In my teams' : '☆ Add to my teams'; act.setAttribute('aria-pressed', on); return; }
     if (a === 'reload') { e.preventDefault(); cache.clear(); tick().then(route); return; }
   }
+  const jl = e.target.closest('.jump a[href^="#m-"]');
+  if (jl) { e.preventDefault(); const el = document.getElementById(jl.getAttribute('href').slice(1)); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
   const tr = e.target.closest('tr[data-href]');
   if (tr && !e.target.closest('a,button,input,select')) { location.hash = tr.dataset.href.slice(1); }
 });

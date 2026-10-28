@@ -143,6 +143,8 @@ async function priorStandings(L) { try { return await standings(L, seasonYear() 
 async function rankings(L) { if (!L.hasRankings) return null; const d = await jSoft(`${API(L)}/rankings`, 1800000); if (!d || !d.rankings) return null; const ap = d.rankings.find(r => /AP/i.test(r.name)) || d.rankings[0]; return { name: ap.name, week: ap.headline || ap.shortHeadline || '', ranks: (ap.ranks || []).map(r => ({ rank: r.current, prev: r.previous, trend: r.trend, team: (() => { const t = r.team || {}; const loc = t.location || t.nickname || t.name || ''; const mascot = t.name && t.name !== loc ? t.name : ''; return { id: String(t.id), name: mascot ? `${loc} ${mascot}` : loc, short: t.nickname || loc, abbr: t.abbreviation, logo: t.logos && t.logos[0] && t.logos[0].href }; })(), rec: r.recordSummary, pts: r.points, first: r.firstPlaceVotes })) }; }
 async function ratings(L) { return jSoft(`data/${L.key}/ratings.json?d=${todayCT()}`, 900000); }
 async function record(L) { return jSoft(`data/${L.key}/record.json?d=${todayCT()}`, 900000); }
+async function params(L) { return jSoft(`data/${L.key}/params.json?d=${todayCT()}`, 900000); }
+async function aiRecord() { return jSoft(`ai/record.json?d=${todayCT()}`, 900000); }
 async function aiFor(ymd) { return jSoft(`ai/${ymd}.json?d=${ymd}`, 600000); }
 function aiEntry(doc, g) { if (!doc || !doc.games) return null; const e = doc.games[`${g.lk}:${g.id}`] || doc.games[g.id]; if (!e) return null; return { ...e, generatedLabel: doc.generated ? new Date(doc.generated).toLocaleString('en-US', { timeZone: TZ, weekday: 'short', hour: 'numeric', minute: '2-digit' }) + ' CT' : null }; }
 async function injuries(L) { if (!L.hasInjuries) return null; const d = await jSoft(`${API(L)}/injuries`, 600000); if (!d || !d.injuries) return null; const byTeam = {}; d.injuries.forEach(t => { const id = String(t.id || (t.injuries && t.injuries[0] && t.injuries[0].athlete && t.injuries[0].athlete.team && t.injuries[0].athlete.team.id) || ''); byTeam[id] = { name: t.displayName, list: t.injuries || [] }; }); return { teams: d.injuries, byTeam }; }
@@ -178,14 +180,19 @@ function starOut(L, side, ctx) {
   if (!names.length) return null;
   return { name: names.join(', '), names, pts: -Math.min(8, total) };
 }
+/* tuned parameters (data/<league>/params.json, refit nightly) override the config defaults */
+const paramsOf = (L, ctx) => { const P = ctx && ctx.params; return { hca: P && P.hca != null ? P.hca : L.hca, b2b: P && P.b2b != null ? P.b2b : L.b2b, sd: P && P.sd != null ? P.sd : L.sd, calib: P && P.calib ? P.calib : null }; };
+const logit = p => Math.log(p / (1 - p)), sigm = z => 1 / (1 + Math.exp(-z));
+const calibrate = (p, c) => { if (!c || !isFinite(c.a) || !isFinite(c.b)) return p; const q = Math.min(.995, Math.max(.005, p)); return sigm(c.a * logit(q) + c.b); };
 function forecast(L, g, ctx) {
   const H = strength(L, g.home.id, ctx), A = strength(L, g.away.id, ctx);
-  const hca = g.neutral ? 0 : L.hca;
-  const restH = ctx.b2b && ctx.b2b.has(g.home.id) ? -L.b2b : 0, restA = ctx.b2b && ctx.b2b.has(g.away.id) ? -L.b2b : 0;
+  const P = paramsOf(L, ctx);
+  const hca = g.neutral ? 0 : P.hca;
+  const restH = ctx.b2b && ctx.b2b.has(g.home.id) ? -P.b2b : 0, restA = ctx.b2b && ctx.b2b.has(g.away.id) ? -P.b2b : 0;
   const soH = starOut(L, g.home, ctx), soA = starOut(L, g.away, ctx);
   const inj = (soH ? soH.pts : 0) - (soA ? soA.pts : 0);
   const margin = (H.rating - A.rating) + hca + (restH - restA) + (H.form - A.form) + inj;
-  let p = Phi(margin / L.sd), live = false;
+  let p = calibrate(Phi(margin / P.sd), P.calib), live = false;
   if (g.state === 'in' && g.home.score != null && g.away.score != null) {
     const per = g.period || 1; const [mm, ss] = String(g.clock || '0:00').split(':').map(Number);
     const left = isFinite(mm) ? (mm + (ss || 0) / 60) : 0;
@@ -193,7 +200,7 @@ function forecast(L, g, ctx) {
     const rem = per <= regPeriods ? (regPeriods - per) * perLen + left : left;
     const frac = Math.max(rem, 0) / L.minutes;
     const lead = g.home.score - g.away.score;
-    const sd = (L.sd + 2) * Math.sqrt(frac) + 1.5;
+    const sd = (P.sd + 2) * Math.sqrt(frac) + 1.5;
     p = Phi((lead + margin * frac) / sd); live = true;
   }   // finals keep the pregame estimate so cards can show hit/miss
   return { pHome: p, margin, live, H, A, hca, restH, restA, soH, soA, source: H.source === 'elo' && A.source === 'elo' ? 'elo' : 'margin' };
@@ -201,11 +208,11 @@ function forecast(L, g, ctx) {
 const ctxCache = new Map();
 async function forecastCtx(L, ymd) {
   const k = L.key + ymd; const hit = ctxCache.get(k); if (hit && Date.now() - hit.t < 300000) return hit.v;
-  const [rt, cur, yday, inj, lp] = await Promise.all([ratings(L), standings(L).catch(() => null), scoreboard(L, addDays(ymd, -1)).catch(() => []), injuries(L), L.hasInjuries ? leaguePlayers(L).catch(() => null) : null]);
+  const [rt, cur, yday, inj, lp, params] = await Promise.all([ratings(L), standings(L).catch(() => null), scoreboard(L, addDays(ymd, -1)).catch(() => []), injuries(L), L.hasInjuries ? leaguePlayers(L).catch(() => null) : null, jSoft(`data/${L.key}/params.json?d=${todayCT()}`, 900000)]);
   const prior = rt ? null : await priorStandings(L);
   const b2b = new Set(); yday.forEach(g => { if (g.state !== 'pre') { b2b.add(g.home.id); b2b.add(g.away.id); } });
   const ppg = {}; if (lp) lp.rows.forEach(r => { ppg[(r.name || '').toLowerCase()] = { pts: r.pts, teamId: r.teamId }; });
-  const v = { ratings: rt, cur, prior, b2b, inj, ppg };
+  const v = { ratings: rt, cur, prior, b2b, inj, ppg, params };
   ctxCache.set(k, { t: Date.now(), v }); return v;
 }
 
@@ -235,5 +242,5 @@ ORDER.forEach(k => S.today[k] = []);
 const allToday = () => ORDER.flatMap(k => S.today[k]);
 
 Object.assign(HW, { esc, j, jSoft, cache, todayCT, addDays, compact, expand, ymdOf, dayLabel, relDay, tip, dateShort, timeCT, ago, pct, sign, ordinal, hx, darkOf, Phi, store, API, API2, WEB, logoUrl, seasonYear, favs,
-  parseEvent, isLive, isFav, isRanked, order, interest, scoreboard, standings, priorStandings, rankings, ratings, record, aiFor, aiEntry, injuries, forecast, forecastCtx, leaguePlayers, S, allToday });
+  parseEvent, isLive, isFav, isRanked, order, interest, scoreboard, standings, priorStandings, rankings, ratings, record, params, aiRecord, aiFor, aiEntry, injuries, forecast, forecastCtx, leaguePlayers, S, allToday });
 })();
