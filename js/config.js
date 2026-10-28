@@ -33,7 +33,7 @@
   };
   const ORDER = ['nba', 'wnba', 'ncaam', 'ncaaw'];
   // Push server (push/worker.js on Cloudflare). url stays empty until the worker is deployed; the site then falls back to in-app alerts.
-  const PUSH = { url: 'https://tipoff-push.ray-marshall300.workers.dev', key: 'BDUH0aH26afiBJtMQeD2pB3ktBXjdQ8YBENhlZ-7LuZVrpMoS9_EMhhcYV9ivNXZLG80AuyhT3a7ETH8c8AlJAU' };
+  const PUSH = { url: '', key: 'BDUH0aH26afiBJtMQeD2pB3ktBXjdQ8YBENhlZ-7LuZVrpMoS9_EMhhcYV9ivNXZLG80AuyhT3a7ETH8c8AlJAU' };
   const ESPN = {
     site: 'https://site.api.espn.com/apis/site/v2/sports/basketball/',
     v2: 'https://site.api.espn.com/apis/v2/sports/basketball/',
