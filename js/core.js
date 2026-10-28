@@ -195,7 +195,7 @@ function forecast(L, g, ctx) {
     const lead = g.home.score - g.away.score;
     const sd = (L.sd + 2) * Math.sqrt(frac) + 1.5;
     p = Phi((lead + margin * frac) / sd); live = true;
-  } else if (g.state === 'post' && g.home.score != null && g.away.score != null) { p = g.home.score > g.away.score ? 1 : 0; }
+  }   // finals keep the pregame estimate so cards can show hit/miss
   return { pHome: p, margin, live, H, A, hca, restH, restA, soH, soA, source: H.source === 'elo' && A.source === 'elo' ? 'elo' : 'margin' };
 }
 const ctxCache = new Map();

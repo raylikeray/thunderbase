@@ -4,46 +4,46 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Hardwood</title>
-<meta name="description" content="Hardwood: live scores, box scores, standings, player stats, rankings, forecasts and news for the NBA, WNBA and college basketball, in one place.">
-<meta name="theme-color" content="#002D62">
+<meta name="description" content="Hardwood: every basketball game in one place. Live scores, box scores, standings, rankings, player stats, forecasts and news for the NBA, WNBA and NCAA men's and women's basketball.">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#161c25" media="(prefers-color-scheme: dark)">
 <meta property="og:title" content="Hardwood">
-<meta property="og:description" content="Everything basketball, live: NBA, WNBA, men's and women's college. Scores, box scores, standings, forecasts and the wire.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23d9a86c'/%3E%3Cpath d='M0 20h64M0 44h64' stroke='%23c48f53' stroke-width='2'/%3E%3Crect x='18' y='0' width='28' height='26' fill='%23007AC1'/%3E%3Cpath d='M18 26a14 14 0 0 0 28 0' fill='none' stroke='%23fff' stroke-width='3'/%3E%3Cpath d='M18 0v26h28V0' fill='none' stroke='%23fff' stroke-width='3'/%3E%3C/svg%3E">
+<meta property="og:description" content="Every basketball game in one place: NBA, WNBA, NCAA M and NCAA W. Live scores, standings, forecasts with a public record, and the wire.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23d9a86c'/%3E%3Cpath d='M0 22h64M0 42h64' stroke='%23c48f53' stroke-width='2'/%3E%3Cpath d='M18 8v22a14 14 0 0 0 28 0V8' fill='none' stroke='%23fff' stroke-width='5'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://site.api.espn.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/app.css?v=9">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Barlow+Condensed:wght@700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/app.css?v=10">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
 <header class="bar">
   <div class="bar-in">
-    <a class="brand" href="#home" aria-label="Hardwood home">Hard<span>wood</span></a>
-    <nav class="nav" aria-label="Leagues">
-      <a href="#home" data-nav="home">Home</a>
-      <a href="#nba" data-nav="nba">NBA</a>
-      <a href="#ncaam" data-nav="ncaam">Men's</a>
-      <a href="#ncaaw" data-nav="ncaaw">Women's</a>
-      <a href="#wnba" data-nav="wnba">WNBA</a>
+    <a class="brand" href="#scores" aria-label="Hardwood home"><i></i>Hardwood</a>
+    <nav class="nav" aria-label="Sections">
+      <a href="#scores" data-nav="scores">Scores</a>
+      <a href="#standings" data-nav="standings">Standings</a>
+      <a href="#rankings" data-nav="rankings">Rankings</a>
+      <a href="#teams" data-nav="teams">Teams</a>
+      <a href="#players" data-nav="players">Players</a>
+      <a href="#forecasts" data-nav="forecasts">Forecasts</a>
+      <a href="#news" data-nav="news">News</a>
       <a href="#record" data-nav="record">Record</a>
     </nav>
     <div class="fresh" id="fresh" role="status" aria-live="polite"><span class="fresh-dot"></span><span id="freshText">Loading…</span></div>
   </div>
-  <nav class="subnav" id="subnav" aria-label="Sections" hidden></nav>
 </header>
 
-<div class="floor" aria-hidden="true"></div>
-
-<section class="strip-wrap" id="stripWrap" aria-label="Today's games">
-  <div class="strip-head">
-    <span class="strip-date" id="stripDate"></span>
-    <span class="strip-count" id="stripCount"></span>
-  </div>
-  <div class="strip" id="strip"></div>
-</section>
-
 <main id="main" tabindex="-1"></main>
+
+<nav class="tabbar" aria-label="Sections">
+  <a href="#scores" data-nav="scores"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 12h18M12 5v14"/></svg>Scores</a>
+  <a href="#standings" data-nav="standings"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h12M4 18h8"/></svg>Standings</a>
+  <a href="#teams" data-nav="teams"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>Teams</a>
+  <a href="#forecasts" data-nav="forecasts"><svg viewBox="0 0 24 24"><path d="M4 18l5-6 4 3 7-9"/><path d="M20 6v5M20 6h-5"/></svg>Forecasts</a>
+  <a href="#news" data-nav="news"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>News</a>
+</nav>
 
 <footer class="foot">
   <div class="foot-in">
@@ -52,9 +52,9 @@
   </div>
 </footer>
 
-<script src="js/config.js?v=9"></script>
-<script src="js/core.js?v=9"></script>
-<script src="js/views.js?v=9"></script>
-<script src="js/app.js?v=9"></script>
+<script src="js/config.js?v=10"></script>
+<script src="js/core.js?v=10"></script>
+<script src="js/views.js?v=10"></script>
+<script src="js/app.js?v=10"></script>
 </body>
 </html>
