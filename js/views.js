@@ -74,13 +74,13 @@ function aiBlock(ai, open, id) {
 }
 function hero(L, g, f, ai, opts = {}) {
   const live = isLive(g), pre = g.state === 'pre';
-  const side = (s, lo) => `<div class="side-t"><img src="${esc(s.logo)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"><div class="n${pre ? ' pre' : ''}${lo ? ' lo' : ''}">${pre ? esc(s.abbr) : esc(s.score ?? '–')}</div><div class="l">${rk(s)}${esc(s.short)}${s.rec ? ` · <span class="nw">${esc(s.rec)}</span>` : ''}</div></div>`;
+  const side = (s, lo) => `<a class="side-t" href="${hrefT(L.key, s.id)}" aria-label="${esc(s.name || s.short)} team page"><img src="${esc(s.logo)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"><div class="n${pre ? ' pre' : ''}${lo ? ' lo' : ''}">${pre ? esc(s.abbr) : esc(s.score ?? '–')}</div><div class="l">${rk(s)}${esc(s.short)}${s.rec ? ` · <span class="nw">${esc(s.rec)}</span>` : ''}</div></a>`;
   const aLo = g.state === 'post' && g.away.score < g.home.score, hLo = g.state === 'post' && g.home.score < g.away.score;
   const mid = pre ? `<div class="mid">@<small>${esc(tip(g.date))} CT</small></div>` : `<div class="mid">–<small>${esc(live ? g.detail : (g.detail || 'Final'))}${live && g.sit && g.sit.text ? `<br>${esc(g.sit.text)}${g.sit.poss ? ' · ' + esc((g.sit.poss === g.home.id ? g.home : g.away).abbr) + ' ball' : ''}` : ''}</small></div>`;
   const badge = live ? `<span class="badge live">Live</span>` : opts.badge ? `<span class="badge">${esc(opts.badge)}</span>` : '';
   const open = S.open.has('ai-' + g.id);
   return `<article class="hero" aria-label="${esc(g.away.name)} at ${esc(g.home.name)}">
-    <div class="top"><div><h1>${tn(g.away)} at ${tn(g.home)}</h1><div class="sub">${esc(statusLine(g))}${g.note ? ' · ' + esc(g.note) : ''}</div></div>${badge}</div>
+    <div class="top"><div><h1><a href="${hrefT(L.key, g.away.id)}">${tn(g.away)}</a> at <a href="${hrefT(L.key, g.home.id)}">${tn(g.home)}</a></h1><div class="sub">${esc(statusLine(g))}${g.note ? ' · ' + esc(g.note) : ''}</div></div>${badge}</div>
     <div class="score">${side(g.away, aLo)}${mid}${side(g.home, hLo)}</div>
     <div class="foot"><div>${f ? fbar(L, g, f) : ''}</div><div style="display:flex;gap:8px;flex-wrap:wrap">${ai ? `<button class="btn sm" data-act="ai" data-id="${g.id}" aria-expanded="${open}" aria-controls="ai-${g.id}">${open ? 'Hide prediction' : 'Prediction'}</button>` : ''}${g.state !== 'post' ? watchFor(g, L).slice(0, 2).map(w => `<a class="btn sm watch" href="${esc(w.url)}" target="_blank" rel="noopener">${live ? 'Watch live' : 'Watch'} on ${esc(w.label)}</a>`).join('') : ''}${opts.actions || ''}</div></div>
     ${aiBlock(ai, open, g.id)}
@@ -208,7 +208,7 @@ async function center(lk) {
       const cands = upcoming.map(g => { const f = fcs.get(g.id); const close = 1 - Math.abs(f.pHome - .5) * 2; return { g, f, s: interest(g) + close * 40 + (g.state === 'in' ? 45 : 0) }; }).sort((a, b) => b.s - a.s);
       const c = cands[0]; const g = c.g, f = c.f; const a = aiEntry(ai, g);
       const txt = a ? `<b>${esc(a.headline || '')}</b> ${esc((a.read || '').split(/(?<=\.)\s/).slice(0, 2).join(' '))}` : `<b>${g.state === 'in' ? 'Live now.' : 'The model\'s read.'}</b> ${esc(whyText(L, g, f))}.`;
-      callBody = `<div class="feat"><div class="t"><a href="${hrefT(lk, g.away.id)}"><div class="ab" style="color:${g.away.color}">${esc(g.away.abbr)}</div></a><small>${tn(g.away)} · ${esc(g.away.rec)}</small><div class="pct${1 - f.pHome >= .5 ? ' lead' : ''}">${g.state === 'in' ? g.away.score : pct(1 - f.pHome)}</div></div><div class="mid">${g.state === 'in' ? `<span class="big">${esc(g.detail)}</span>` : `${esc(tip(g.date))}<br>${esc(g.tv.label || '')}`}<br>${esc(g.venue || '')}</div><div class="t"><a href="${hrefT(lk, g.home.id)}"><div class="ab" style="color:${g.home.color}">${esc(g.home.abbr)}</div></a><small>${tn(g.home)} · ${esc(g.home.rec)}</small><div class="pct${f.pHome > .5 ? ' lead' : ''}">${g.state === 'in' ? g.home.score : pct(f.pHome)}</div></div></div><p class="aiq">${txt} <a href="${hrefG(lk, g.id)}" style="color:var(--link);text-decoration:none;font-weight:700">${a ? 'Full read →' : 'Preview →'}</a></p>` +
+      callBody = `<div class="feat"><div class="t"><a href="${hrefT(lk, g.away.id)}"><div class="ab" style="color:${g.away.color}">${esc(g.away.abbr)}</div><small>${tn(g.away)} · ${esc(g.away.rec)}</small></a><div class="pct${1 - f.pHome >= .5 ? ' lead' : ''}">${g.state === 'in' ? g.away.score : pct(1 - f.pHome)}</div></div><div class="mid">${g.state === 'in' ? `<span class="big">${esc(g.detail)}</span>` : `${esc(tip(g.date))}<br>${esc(g.tv.label || '')}`}<br>${esc(g.venue || '')}</div><div class="t"><a href="${hrefT(lk, g.home.id)}"><div class="ab" style="color:${g.home.color}">${esc(g.home.abbr)}</div><small>${tn(g.home)} · ${esc(g.home.rec)}</small></a><div class="pct${f.pHome > .5 ? ' lead' : ''}">${g.state === 'in' ? g.home.score : pct(f.pHome)}</div></div></div><p class="aiq">${txt} <a href="${hrefG(lk, g.id)}" style="color:var(--link);text-decoration:none;font-weight:700">${a ? 'Full read →' : 'Preview →'}</a></p>` +
         (cands.length > 1 ? `<div class="fcl" style="margin-top:8px">${cands.slice(1, 6).map(x => miniRow(x.g, x.f)).join('')}</div>` : '') + (upcoming.length > 6 ? `<p class="note"><a href="${hrefS('forecasts', lk)}" style="color:var(--link);text-decoration:none">All ${upcoming.length} forecasts →</a></p>` : '');
     } else callBody = `<p class="muted" style="margin:0">Nothing left on today's slate.</p><div class="fcl" style="margin-top:6px">${games.slice(0, 6).map(g => miniRow(g, fcs.get(g.id))).join('')}</div>`;
     grid.push(mod("Tonight's call", callBody, { cls: 'c4', id: 'm-call', x: (ai && ai.games && games.some(g => aiEntry(ai, g))) ? 'Prediction · ' + (ai && ai.generated ? new Date(ai.generated).toLocaleTimeString('en-US', { timeZone: HW.TZ, hour: 'numeric', minute: '2-digit' }) : 'today') : 'model', href: hrefS('forecasts', lk) }));
@@ -370,7 +370,7 @@ async function game(lk, id) {
         else body = `<tr class="sub"><td colspan="${labels.length + 1}">${esc(s.text || s.displayName || s.name || '')}</td></tr>` + ath.map(rowOf).join('');
         return `<div class="tw"><table class="t box"><thead><tr><th>Player</th>${labels.map(l => `<th>${esc(l)}</th>`).join('')}</tr></thead><tbody>${body}${tot}</tbody></table></div>`;
       };
-      return mod(side.short, cats.map(table).join(''), { x: 'box score' });
+      return mod(side.short, cats.map(table).join(''), { x: 'box score · team page', href: hrefT(lk, side.id) });
     };
     const boxes = [boxFor(g.away), boxFor(g.home)].filter(Boolean);
     const tms = d.boxscore && d.boxscore.teams || [];
