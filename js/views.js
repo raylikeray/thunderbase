@@ -26,7 +26,7 @@ function fbar(L, g, f, opts = {}) {
   const bits = [];
   if (g.state !== 'post') {
     if (f.live) bits.push(`pregame ${esc(g.home.abbr)} ${sign(f.margin)}`);
-    else { bits.push(`rating gap ${sign(f.H.rating - f.A.rating)}`); if (f.hca) bits.push(`home +${f.hca}`); if (f.restH || f.restA) bits.push(`rest ${sign(f.restH - f.restA)}`); if (f.soH) bits.push(`${esc(f.soH.name.split(' ').pop())} out`); if (f.soA) bits.push(`${esc(f.soA.name.split(' ').pop())} out`); }
+    else { const gap = f.H.rating - f.A.rating; bits.push(`${esc((gap >= 0 ? g.home : g.away).abbr)} rating edge +${Math.abs(gap).toFixed(1)}`); if (f.hca) bits.push(`${esc(g.home.abbr)} home +${f.hca}`); if (f.restH || f.restA) bits.push(`rest ${sign(f.restH - f.restA)}`); if (f.soH) bits.push(`${esc(f.soH.name.split(' ').pop())} out`); if (f.soA) bits.push(`${esc(f.soA.name.split(' ').pop())} out`); }
   }
   return `<div class="fbar-l"><span>${label}</span><span>${bits.join(' · ')}</span></div><div class="fbar" role="img" aria-label="${esc(g.away.abbr)} ${pct(pa)}, ${esc(g.home.abbr)} ${pct(ph)}"><i style="width:${pa * 100}%;background:${opts.awayColor || 'var(--gold)'}"></i><i style="width:${ph * 100}%;background:${opts.homeColor || '#ffffff'};opacity:.9"></i></div>`;
 }
@@ -44,7 +44,7 @@ function keyBlock(L, g, f, ai, opts = {}) {
   const homeId = L.home; const mine = homeId && (g.home.id === homeId || g.away.id === homeId);
   const favSide = favs.has(L.key, g.home.id) ? g.home : favs.has(L.key, g.away.id) ? g.away : null;
   const title = favSide ? `${esc(favSide.short)} ${favSide === g.home ? 'vs' : 'at'} ${tn(favSide === g.home ? g.away : g.home)}` : `${tn(g.away)} at ${tn(g.home)}`;
-  const side = (s, cls) => `<div class="key-side"><img class="key-logo" src="${esc(s.logo)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"><div class="key-n ${cls}${pre ? ' pre' : ''}">${pre ? esc(s.abbr) : esc(s.score ?? '–')}</div><div class="key-l">${rk(s)}${esc(s.short)}${s.rec ? ' · ' + esc(s.rec) : ''}</div></div>`;
+  const side = (s, cls) => `<div class="key-side"><img class="key-logo" src="${esc(s.logo)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"><div class="key-n ${cls}${pre ? ' pre' : ''}">${pre ? esc(s.abbr) : esc(s.score ?? '–')}</div><div class="key-l">${rk(s)}${esc(s.short)}${s.rec ? ` · <span class="nw">${esc(s.rec)}</span>` : ''}</div></div>`;
   const awayCls = favSide === g.away ? '' : 'away', homeCls = favSide === g.home ? '' : (favSide === g.away ? 'away' : '');
   const mid = pre ? `<div class="key-mid">@<small>${esc(tip(g.date))} CT</small></div>` : `<div class="key-mid">–<small>${esc(live ? g.detail : (g.detail || 'Final'))}</small></div>`;
   const badge = live ? `<span class="key-badge live">Live</span>` : opts.badge ? `<span class="key-badge">${esc(opts.badge)}</span>` : '';
