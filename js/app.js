@@ -77,7 +77,7 @@ function paintNav(lk, name) {
   $subnav.innerHTML = items.map(([k, l, h]) => `<a href="${h}" class="${k === sec ? 'on' : ''}"${k === sec ? ' aria-current="page"' : ''}>${l}</a>`).join('') + `<span class="d" id="subd"></span>`;
   params(L).then(P => { const d = document.getElementById('subd'); if (d && P) d.textContent = HW.render.tuneLine(P); }).catch(() => { });
   // keep the active section in view on narrow screens
-  const on = $subnav.querySelector('a.on'); if (on && on.scrollIntoView) try { on.scrollIntoView({ block: 'nearest', inline: 'center' }); } catch { }
+  const on = $subnav.querySelector('a.on'); if (on) { const L = on.offsetLeft, W = on.offsetWidth, sl = $subnav.scrollLeft, JW = $subnav.clientWidth; if (L < sl || L + W > sl + JW) $subnav.scrollLeft = Math.max(0, L - (JW - W) / 2); }
 }
 let navSeq = 0;
 async function route() {
@@ -97,7 +97,9 @@ async function route() {
   const jump = document.querySelector('.jump');
   if (jump) {
     const links = [...jump.querySelectorAll('a')]; const els = links.map(a => document.getElementById(a.getAttribute('href').slice(1)));
-    let raf = 0; const paint = () => { raf = 0; let best = 0; els.forEach((el, i) => { if (el && el.getBoundingClientRect().top <= 72) best = i; }); links.forEach((a, i) => a.classList.toggle('on', i === best)); const on = links[best]; if (on && on.scrollIntoView) try { on.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch { } };
+    const reveal = a => { const L = a.offsetLeft, W = a.offsetWidth, sl = jump.scrollLeft, JW = jump.clientWidth; if (L < sl) jump.scrollLeft = Math.max(0, L - 8); else if (L + W > sl + JW) jump.scrollLeft = L + W - JW + 8; };
+    let raf = 0; S.jumpOn = -1;
+    const paint = () => { raf = 0; let best = 0; els.forEach((el, i) => { if (el && el.getBoundingClientRect().top <= 72) best = i; }); if (best === S.jumpOn) return; S.jumpOn = best; links.forEach((a, i) => a.classList.toggle('on', i === best)); reveal(links[best]); };
     const onScroll = () => { if (!raf) raf = requestAnimationFrame(paint); };
     window.removeEventListener('scroll', S.jumpScroll); S.jumpScroll = onScroll; window.addEventListener('scroll', onScroll, { passive: true }); paint();
   } else if (S.jumpScroll) { window.removeEventListener('scroll', S.jumpScroll); S.jumpScroll = null; }
