@@ -161,12 +161,13 @@ async function pickerOpen(lk, opts = {}) {
   let dlg = document.getElementById('pick');
   if (!dlg) { dlg = document.createElement('dialog'); dlg.id = 'pick'; dlg.className = 'pick'; document.body.appendChild(dlg); dlg.addEventListener('close', () => { store.set('onboarded', true); HW.route(); }); }
   const welcome = !!opts.welcome;
-  const tabs = SPORTS.map(sp => `<div class="pick-sp"><small>${esc(sp.label)}</small>${sp.leagues.map(k => `<button class="pick-lk${k === lk ? ' on' : ''}" data-act="picklk" data-lk="${k}">${esc(LEAGUES[k].label)}</button>`).join('')}</div>`).join('');
-  dlg.innerHTML = `<div class="pick-h"><b>${welcome ? 'Welcome to Tipoff' : 'My teams'}</b><span class="x">${welcome ? 'every game, one screen' : 'tap the teams you follow'}</span><button class="btn sm" data-act="pickdone">Done</button></div>${welcome ? '<p class="pick-w">Pick the teams you follow. They lead every screen, go first in the scoreboard, and are the only ones you get updates about. Switch leagues with the tabs.</p>' : ''}<div class="pick-tabs">${tabs}</div><div class="pick-b"><p class="muted" style="margin:0 0 8px">Loading teams…</p></div><div class="pick-f" id="pickf">${opts.updates !== false ? updatesBody() : ''}</div>`;
+  // same two-level switch as the header: a sport row, then that sport's leagues
+  const spKey = LEAGUES[lk].sport; const spDef = SPORTS.find(x => x.key === spKey) || SPORTS[0];
+  const tabs = `<div class="pick-nav"><div class="pick-sports">${SPORTS.map(x => `<button class="${x.key === spKey ? 'on' : ''}" data-act="picklk" data-lk="${x.key === spKey ? lk : (x.leagues.includes(store.get('lk:' + x.key, '')) ? store.get('lk:' + x.key, '') : x.leagues[0])}" aria-pressed="${x.key === spKey}">${esc(x.label)}</button>`).join('')}</div><div class="pick-tabs">${spDef.leagues.map(k => `<button class="pick-lk${k === lk ? ' on' : ''}" data-act="picklk" data-lk="${k}" aria-pressed="${k === lk}">${esc(LEAGUES[k].label)}</button>`).join('')}</div></div>`;
+  dlg.innerHTML = `<div class="pick-h"><b>${welcome ? 'Welcome to Tipoff' : 'My teams'}</b><span class="x">${welcome ? 'every game, one screen' : 'tap the teams you follow'}</span><button class="btn sm" data-act="pickdone">Done</button></div>${welcome ? '<p class="pick-w">Pick the teams you follow. They lead every screen, go first in the scoreboard, and are the only ones you get updates about. Switch sports and leagues above the list.</p>' : ''}${tabs}<div class="pick-b"><p class="muted" style="margin:0 0 8px">Loading teams…</p></div><div class="pick-f" id="pickf">${opts.updates !== false ? updatesBody() : ''}</div>`;
   if (!dlg.open) dlg.showModal();
   dlg.scrollTop = 0;
-  { const row = dlg.querySelector('.pick-tabs'), on = row && row.querySelector('.pick-lk.on'); if (on) row.scrollLeft = Math.max(0, on.offsetLeft - (row.clientWidth - on.offsetWidth) / 2); }
-  if (opts.updates === 'only') { dlg.querySelector('.pick-b').hidden = true; dlg.querySelector('.pick-tabs').hidden = true; dlg.querySelector('.pick-h b').textContent = 'Updates'; dlg.querySelector('.pick-h .x').textContent = 'for the teams you picked'; return; }
+  if (opts.updates === 'only') { dlg.querySelector('.pick-b').hidden = true; dlg.querySelector('.pick-nav').hidden = true; dlg.querySelector('.pick-h b').textContent = 'Updates'; dlg.querySelector('.pick-h .x').textContent = 'for the teams you picked'; return; }
   const L = LEAGUES[lk];
   let cur; try { cur = await standings(L); } catch { dlg.querySelector('.pick-b').innerHTML = failMsg('teams'); return; }
   const R = await rankings(L);
