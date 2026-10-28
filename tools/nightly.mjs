@@ -8,7 +8,8 @@ const { LEAGUES, ORDER, ESPN, TZ } = createRequire(import.meta.url)('../js/confi
 const mode = process.argv[2] || 'ratings';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 async function get(u, tries = 2) { for (let i = 0; ; i++) { try { const r = await fetch(u, { headers: { 'user-agent': 'hardwood-nightly' } }); if (!r.ok) throw new Error(u + ' ' + r.status); return await r.json(); } catch (e) { if (i >= tries) throw e; await sleep(800 * (i + 1)); } } }
-const soft = async u => { try { return await get(u); } catch { return null; } };
+let lastErr = null; const DEBUG = {};
+const soft = async u => { try { return await get(u); } catch (e) { lastErr = String(e.message || e); return null; } };
 const ymdFmt = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
 const todayCT = () => { const d = new Date(); const h = +new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour: 'numeric', hour12: false }).format(d) % 24; const y = ymdFmt.format(d); return h < 4 ? addDays(y, -1) : y; };
 const addDays = (ymd, n) => { const [y, m, d] = ymd.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10); };
@@ -85,7 +86,7 @@ async function runRatings() {
       let budget = L.standingsMode === 'conferences' ? 60 : 40;
       for (const { g, f } of pre) {
         let ep = null;
-        if (budget > 0) { budget--; const s = await soft(`${API(L)}/summary?event=${g.id}`); const gp = s && s.predictor && s.predictor.homeTeam && s.predictor.homeTeam.gameProjection; if (gp != null && gp !== '') { ep = parseFloat(gp) / 100; espnN++; } await sleep(120); }
+        if (budget > 0) { budget--; const s = await soft(`${API(L)}/summary?event=${g.id}`); const gp = s && s.predictor && s.predictor.homeTeam && s.predictor.homeTeam.gameProjection; if (gp != null && gp !== '') { ep = parseFloat(gp) / 100; espnN++; } if (!DEBUG[lk]) DEBUG[lk] = { id: g.id, ok: !!s, keys: s ? Object.keys(s) : null, predictor: s && s.predictor || null, err: lastErr }; await sleep(120); }
         st.record.push({ id: g.id, date: d, h: g.home.abbr, a: g.away.abbr, hid: g.home.id, aid: g.away.id, hs: g.home.score, as: g.away.score, p: +f.p.toFixed(4), ep: ep != null ? +ep.toFixed(4) : null, n: g.neutral ? 1 : 0 });
         update(L, st, g); st.processed[g.id] = 1; n++;
       }
@@ -100,6 +101,7 @@ async function runRatings() {
     writeJson(`data/${lk}/record.json`, { generated: new Date().toISOString(), games: st.record });
     console.log(lk, `+${n} games (${espnN} with ESPN BPI), ${st.record.length} on record, through ${st.lastDate}`);
   }
+  writeJson('data/debug.json', { at: new Date().toISOString(), DEBUG });
 }
 
 /* ---------- AI context ---------- */
