@@ -31,7 +31,7 @@
       favs: [], home: null
     }
   };
-  const ORDER = ['nba', 'ncaam', 'ncaaw', 'wnba'];
+  const ORDER = ['nba', 'wnba', 'ncaam', 'ncaaw'];
   const ESPN = {
     site: 'https://site.api.espn.com/apis/site/v2/sports/basketball/',
     v2: 'https://site.api.espn.com/apis/v2/sports/basketball/',
