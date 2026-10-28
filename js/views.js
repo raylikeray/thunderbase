@@ -134,22 +134,39 @@ function myTeamCard(L, id, cur, R, sched, inj, ctx) {
   const href = next && next.state !== 'post' ? hrefG(lk, next.id) : hrefT(lk, id);
   return `<a class="my-card ${cls}" href="${href}"><img src="${esc(logo)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"><div class="my-b"><div class="my-n">${rank ? `<span class="rk">${rank}</span>` : ''}${esc(name)} <small>${stand}</small></div><div class="my-l">${line1}</div><div class="my-l muted">${line2}${outs ? `${line2 ? ' · ' : ''}<span class="neg">${outs} out</span>` : ''}</div></div></a>`;
 }
-async function pickerOpen(lk) {
-  const L = LEAGUES[lk];
-  let dlg = document.getElementById('pick');
-  if (!dlg) { dlg = document.createElement('dialog'); dlg.id = 'pick'; dlg.className = 'pick'; document.body.appendChild(dlg); dlg.addEventListener('close', () => { if (location.hash.replace(/^#/, '') === lk || location.hash === '' ) HW.route(); }); }
-  dlg.innerHTML = `<div class="pick-h"><b>My teams</b><span class="x">${esc(L.label)} · tap the teams you follow</span><button class="btn sm" data-act="pickdone">Done</button></div><div class="pick-b"><p class="muted" style="margin:0 0 8px">Loading teams…</p></div>`;
-  if (!dlg.open) dlg.showModal();
-  let cur; try { cur = await standings(L); } catch { dlg.querySelector('.pick-b').innerHTML = failMsg('teams'); return; }
-  const R = await rankings(L); const rankOf = {}; (R && R.ranks || []).forEach(r => rankOf[r.team.id] = r.rank);
+const NOTIFY_KINDS = [['pre', 'Pregame', '30 minutes before tip, with the forecast and who is out'], ['close', 'Close games', 'Within one possession in the last minutes'], ['final', 'Finals', 'The final score and how the forecast did'], ['inj', 'Injuries', 'When a player on your team is newly out or back'], ['moves', 'Trades and signings', 'Transactions involving your teams']];
+function notifyPrefs() { return store.get('notify', { on: false, pre: true, close: true, final: true, inj: true, moves: true }); }
+function notifySupport() { if (!('Notification' in window)) return { ok: false, why: /iPhone|iPad|iPod/.test(navigator.userAgent) ? 'On iPhone, add Tipoff to your home screen first (Share, then Add to Home Screen); updates work from the installed app.' : 'This browser does not support notifications.' }; return { ok: true }; }
+function pickerBody(lk, cur, R) {
+  const L = LEAGUES[lk]; const rankOf = {}; (R && R.ranks || []).forEach(r => rankOf[r.team.id] = r.rank);
   const chip = r => `<button class="pick-t${favs.has(lk, r.id) ? ' on' : ''}" data-act="pickt" data-lk="${lk}" data-id="${esc(r.id)}" data-q="${esc((r.name + ' ' + (r.abbr || '') + ' ' + (r.loc || '')).toLowerCase())}" aria-pressed="${favs.has(lk, r.id)}"><img src="${esc(r.logo)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"><span>${rankOf[r.id] ? `<span class="rk">${rankOf[r.id]}</span>` : ''}${esc(r.short || r.name)}</span></button>`;
   const college = L.standingsMode === 'conferences';
   const groups = college ? [...cur.groups].sort((a, b) => a.name.localeCompare(b.name)) : cur.groups;
-  dlg.querySelector('.pick-b').innerHTML = (college ? `<input class="inp" id="pickq" type="search" placeholder="Find a school or conference" aria-label="Find a team" style="margin-bottom:10px;width:100%">` : '') + groups.map(gp => `<div class="pick-g" data-name="${esc(gp.name.toLowerCase())}"><h4 class="conf-h">${esc(gp.name)}</h4><div class="pick-grid">${gp.rows.map(chip).join('')}</div></div>`).join('') + `<p class="note">Saved on this device only. Your teams lead each league's screen, go first in the scoreboard and are highlighted in standings.</p>`;
+  return (college ? `<input class="inp" id="pickq" type="search" placeholder="Find a school or conference" aria-label="Find a team" style="margin-bottom:10px;width:100%">` : '') + groups.map(gp => `<div class="pick-g" data-name="${esc(gp.name.toLowerCase())}"><h4 class="conf-h">${esc(gp.name)}</h4><div class="pick-grid">${gp.rows.map(chip).join('')}</div></div>`).join('');
+}
+function updatesBody() {
+  const P = notifyPrefs(); const sup = notifySupport(); const granted = sup.ok && Notification.permission === 'granted';
+  const rows = NOTIFY_KINDS.map(([k, l, d]) => `<label class="nrow"><input type="checkbox" data-act="nkind" data-k="${k}" ${P[k] ? 'checked' : ''}><span><b>${l}</b><small>${d}</small></span></label>`).join('');
+  const status = !sup.ok ? `<p class="note">${esc(sup.why)}</p>` : granted && P.on ? `<p class="note" style="color:var(--win)">On. You get updates about your teams while Tipoff is open or installed on your home screen.</p>` : Notification.permission === 'denied' ? `<p class="note">Notifications are blocked for this site in your browser settings; allow them there to turn these on.</p>` : `<button class="btn" data-act="non">Turn on updates</button><p class="note">Only your teams, only these events. Nothing else.</p>`;
+  return `<div class="pick-up"><h4 class="conf-h" style="margin-top:0">Updates for my teams</h4>${rows}${status}</div>`;
+}
+async function pickerOpen(lk, opts = {}) {
+  lk = LEAGUES[lk] ? lk : 'nba';
+  let dlg = document.getElementById('pick');
+  if (!dlg) { dlg = document.createElement('dialog'); dlg.id = 'pick'; dlg.className = 'pick'; document.body.appendChild(dlg); dlg.addEventListener('close', () => { store.set('onboarded', true); HW.route(); }); }
+  const welcome = !!opts.welcome;
+  const tabs = ORDER.map(k => `<button class="pick-lk${k === lk ? ' on' : ''}" data-act="picklk" data-lk="${k}">${esc(LEAGUES[k].label)}</button>`).join('');
+  dlg.innerHTML = `<div class="pick-h"><b>${welcome ? 'Welcome to Tipoff' : 'My teams'}</b><span class="x">${welcome ? 'every game, one screen' : 'tap the teams you follow'}</span><button class="btn sm" data-act="pickdone">Done</button></div>${welcome ? '<p class="pick-w">Pick the teams you follow. They lead every screen, go first in the scoreboard, and are the only ones you get updates about. Switch leagues with the tabs.</p>' : ''}<div class="pick-tabs">${tabs}</div><div class="pick-b"><p class="muted" style="margin:0 0 8px">Loading teams…</p></div><div class="pick-f" id="pickf">${opts.updates !== false ? updatesBody() : ''}</div>`;
+  if (!dlg.open) dlg.showModal();
+  if (opts.updates === 'only') { dlg.querySelector('.pick-b').hidden = true; dlg.querySelector('.pick-tabs').hidden = true; dlg.querySelector('.pick-h b').textContent = 'Updates'; dlg.querySelector('.pick-h .x').textContent = 'for the teams you picked'; return; }
+  const L = LEAGUES[lk];
+  let cur; try { cur = await standings(L); } catch { dlg.querySelector('.pick-b').innerHTML = failMsg('teams'); return; }
+  const R = await rankings(L);
+  dlg.querySelector('.pick-b').innerHTML = pickerBody(lk, cur, R) + `<p class="note">Saved on this device only. Your teams lead each league's screen, go first in the scoreboard and are highlighted in standings.</p>`;
   const q = document.getElementById('pickq');
   if (q) q.addEventListener('input', () => { const v = q.value.trim().toLowerCase(); dlg.querySelectorAll('.pick-g').forEach(gq => { let any = false; gq.querySelectorAll('.pick-t').forEach(c => { const hit = !v || (c.dataset.q || c.textContent.toLowerCase()).includes(v) || gq.dataset.name.includes(v); c.hidden = !hit; any = any || hit; }); gq.hidden = !any; }); });
 }
-
+function pickerRefreshUpdates() { const f = document.getElementById('pickf'); if (f) f.innerHTML = updatesBody(); }
 /* ================= CENTER ================= */
 async function center(lk) {
   const L = LEAGUES[lk]; remember(lk);
@@ -547,5 +564,5 @@ async function recordView() {
 }
 
 HW.views = { center, scores, game, standings: standingsView, rankings: rankingsView, teams, team, players, player, forecasts, injuries: injuriesView, news, record: recordView };
-HW.render = { failMsg, state, lkOf, remember, COLLEGE, tuneLine, pickerOpen };
+HW.render = { failMsg, state, lkOf, remember, COLLEGE, tuneLine, pickerOpen, pickerRefreshUpdates, notifyPrefs, notifySupport };
 })();

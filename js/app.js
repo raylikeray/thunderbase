@@ -33,6 +33,7 @@ async function tick() {
   results.forEach(r => { if (!r.err) S.today[r.k] = r.v; });
   if (anyOk) { S.lastOk = Date.now(); S.err = false; } else S.err = true;
   paintFresh();
+  try { checkAlerts(); } catch (e) { console.error(e); }
   if (S.route && S.route.live) { try { await S.route.live(); } catch (e) { console.error(e); } }
   const all = allToday();
   const anyLive = all.some(isLive);
@@ -123,6 +124,10 @@ document.addEventListener('click', e => {
     if (a === 'fav') { const on = favs.toggle(act.dataset.lk, act.dataset.id); act.textContent = on ? '★ In my teams' : '☆ Add to my teams'; act.setAttribute('aria-pressed', on); return; }
     if (a === 'reload') { e.preventDefault(); cache.clear(); tick().then(route); return; }
     if (a === 'pick') { e.preventDefault(); HW.render.pickerOpen(act.dataset.lk); return; }
+    if (a === 'picklk') { HW.render.pickerOpen(act.dataset.lk); return; }
+    if (a === 'updates') { e.preventDefault(); HW.render.pickerOpen(S.league || 'nba', { updates: 'only' }); return; }
+    if (a === 'nkind') { const P = HW.render.notifyPrefs(); P[act.dataset.k] = act.checked; store.set('notify', P); return; }
+    if (a === 'non') { e.preventDefault(); enableNotify(); return; }
     if (a === 'pickt') { const on = favs.toggle(act.dataset.lk, act.dataset.id); act.classList.toggle('on', on); act.setAttribute('aria-pressed', on); return; }
     if (a === 'pickdone') { const d = document.getElementById('pick'); if (d) d.close(); return; }
     if (a === 'nofavs') { store.set('nofavs:' + act.dataset.lk, true); const el = document.getElementById('m-my'); if (el) el.remove(); return; }
@@ -154,7 +159,74 @@ window.addEventListener('appinstalled', () => { S.installEvt = null; paintInstal
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => { });
 setTimeout(paintInstall, 2500);
 
+/* ---------- updates for my teams (while Tipoff is open or installed) ---------- */
+const { notifyPrefs, notifySupport } = HW.render;
+function paintBell() { const b = document.getElementById('bell'); if (!b) return; const P = notifyPrefs(); b.classList.toggle('on', !!(P.on && 'Notification' in window && Notification.permission === 'granted')); }
+async function enableNotify() {
+  const sup = notifySupport(); if (!sup.ok) { HW.render.pickerRefreshUpdates(); return; }
+  let perm = Notification.permission; if (perm !== 'granted') { try { perm = await Notification.requestPermission(); } catch { } }
+  const P = notifyPrefs(); P.on = perm === 'granted'; store.set('notify', P); HW.render.pickerRefreshUpdates(); paintBell();
+  if (P.on) notify('Tipoff updates are on', 'You will hear about your teams: pregame, close games, finals, injuries, trades.', { tag: 'welcome' });
+}
+async function notify(title, body, opts = {}) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const o = { body, icon: 'img/icon-192.png', badge: 'img/icon-192.png', tag: opts.tag, renotify: false, data: { url: opts.url || location.href } };
+  try { const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration(); if (reg && reg.showNotification) return reg.showNotification(title, o); } catch { }
+  try { const n = new Notification(title, o); n.onclick = () => { window.focus(); if (opts.url) location.hash = opts.url.replace(/^.*#/, ''); n.close(); }; } catch { }
+}
+const seenAlert = (k) => { const s = store.get('alerts:seen', {}); return s[k]; };
+const markAlert = (k) => { const s = store.get('alerts:seen', {}); s[k] = Date.now(); const keys = Object.keys(s); if (keys.length > 400) keys.slice(0, keys.length - 400).forEach(x => delete s[x]); store.set('alerts:seen', s); };
+function lateAndClose(L, g) {
+  if (g.state !== 'in') return false;
+  const margin = Math.abs((g.home.score || 0) - (g.away.score || 0));
+  const reg = L.minutes === 48 ? 4 : 2; const last = g.period >= reg;
+  const [mm] = String(g.clock || '0:00').split(':').map(Number);
+  return last && margin <= 5 && (mm || 0) < 3;
+}
+function checkAlerts() {
+  const P = notifyPrefs(); if (!P.on || !('Notification' in window) || Notification.permission !== 'granted') return;
+  const F = favs.all();
+  ORDER.forEach(lk => {
+    const L = LEAGUES[lk]; const mine = F[lk] || []; if (!mine.length) return;
+    S.today[lk].forEach(g => {
+      if (!mine.includes(g.home.id) && !mine.includes(g.away.id)) return;
+      const key = `${lk}:${g.id}`; const url = `#${lk}/game/${g.id}`; const name = `${g.away.abbr} at ${g.home.abbr}`;
+      const mins = (new Date(g.date) - Date.now()) / 60000;
+      if (P.pre && g.state === 'pre' && mins > 0 && mins <= 30 && !seenAlert(key + ':pre')) { markAlert(key + ':pre'); HW.forecastCtx(L, S.todayYmd).catch(() => null).then(ctx => { let fc = ''; try { if (ctx) { const f = HW.forecast(L, g, ctx); const fav = f.pHome >= .5 ? g.home : g.away; fc = ` · model ${fav.abbr} ${Math.round(Math.max(f.pHome, 1 - f.pHome) * 100)}%`; const so = (f.soH && mine.includes(g.home.id)) ? f.soH : (f.soA && mine.includes(g.away.id)) ? f.soA : null; if (so) fc += ` · ${so.names.length > 1 ? so.names.length + ' out' : so.name + ' out'}`; } } catch { } notify(`${name} tips in ${Math.round(mins)} min`, `${HW.tip(g.date)} CT${g.tv.label ? ' · ' + g.tv.label : ''}${fc}`, { tag: key + ':pre', url }); }); }
+      if (P.close && lateAndClose(L, g) && !seenAlert(key + ':close')) { markAlert(key + ':close'); notify(`Close one: ${g.away.abbr} ${g.away.score}, ${g.home.abbr} ${g.home.score}`, `${g.detail} · open Tipoff`, { tag: key + ':close', url }); }
+      if (P.final && g.state === 'post' && seenAlert(key + ':live') && !seenAlert(key + ':final')) { markAlert(key + ':final'); const w = g.home.score > g.away.score ? g.home : g.away, l = w === g.home ? g.away : g.home; notify(`Final: ${w.abbr} ${w.score}, ${l.abbr} ${l.score}`, `${w.short} ${mine.includes(w.id) ? 'win' : 'beat ' + l.short}`, { tag: key + ':final', url }); }
+      if (g.state === 'in' && !seenAlert(key + ':live')) markAlert(key + ':live');
+    });
+  });
+  const now = Date.now();
+  if (P.inj && now - (S.injCheck || 0) > 15 * 60000) { S.injCheck = now; checkInjuryChanges(F); }
+  if (P.moves && now - (S.moveCheck || 0) > 30 * 60000) { S.moveCheck = now; checkMoves(F); }
+}
+async function checkInjuryChanges(F) {
+  for (const lk of ORDER) {
+    const L = LEAGUES[lk]; const mine = F[lk] || []; if (!mine.length || !L.hasInjuries) continue;
+    const inj = await HW.injuries(L).catch(() => null); if (!inj) continue;
+    const prev = store.get('inj:' + lk, null); const cur = {};
+    mine.forEach(id => { const t = inj.byTeam[id]; if (t) t.list.forEach(x => { if (/out|suspen/i.test(x.status || '')) cur[x.athlete.id] = { n: x.athlete.displayName, t: (t.name || '').split(' ').pop(), s: x.status, d: x.details && x.details.type || '' }; }); });
+    if (prev) {
+      Object.entries(cur).forEach(([id, x]) => { if (!prev[id]) notify(`${x.t}: ${x.n} out`, `${x.d || x.s}${x.d ? ' · ' + x.s : ''}`, { tag: 'inj:' + id, url: `#${lk}/injuries` }); });
+      Object.entries(prev).forEach(([id, x]) => { if (!cur[id]) notify(`${x.t}: ${x.n} off the injury report`, 'No longer listed out', { tag: 'inj:' + id + ':back', url: `#${lk}/injuries` }); });
+    }
+    store.set('inj:' + lk, cur);
+  }
+}
+async function checkMoves(F) {
+  for (const lk of ORDER) {
+    const L = LEAGUES[lk]; const mine = F[lk] || []; if (!mine.length || !L.hasTransactions) continue;
+    const d = await HW.jSoft(`${HW.API(L)}/transactions?limit=40`, 600000); if (!d || !d.transactions) continue;
+    const last = store.get('moves:' + lk, null); let newest = last;
+    d.transactions.forEach(x => { const tid = x.team && String(x.team.id); const t = x.date || ''; if (!tid || !mine.includes(tid)) return; if (!newest || t > newest) newest = t; if (last && t > last) notify(`${x.team.displayName}: transaction`, x.description, { tag: 'mv:' + t + tid, url: `#${lk}/news/moves` }); });
+    if (newest) store.set('moves:' + lk, newest);
+  }
+}
+if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', e => { if (e.data && e.data.url) location.hash = e.data.url.replace(/^.*#/, ''); });
+
 /* ---------- boot ---------- */
 S.todayYmd = todayCT();
-tick().then(route);
+tick().then(route).then(() => { paintBell(); if (!store.get('onboarded', false) && !Object.values(favs.all()).some(a => a.length)) HW.render.pickerOpen(S.league || 'nba', { welcome: true }); });
 })();
