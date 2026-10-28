@@ -126,9 +126,10 @@ document.addEventListener('click', e => {
     if (a === 'pick') { e.preventDefault(); HW.render.pickerOpen(act.dataset.lk); return; }
     if (a === 'picklk') { HW.render.pickerOpen(act.dataset.lk); return; }
     if (a === 'updates') { e.preventDefault(); HW.render.pickerOpen(S.league || 'nba', { updates: 'only' }); return; }
-    if (a === 'nkind') { const P = HW.render.notifyPrefs(); P[act.dataset.k] = act.checked; store.set('notify', P); return; }
+    if (a === 'nkind') { const P = HW.render.notifyPrefs(); P[act.dataset.k] = act.checked; store.set('notify', P); syncPushSoon(); return; }
+    if (a === 'noff') { e.preventDefault(); const P = HW.render.notifyPrefs(); P.on = false; store.set('notify', P); unsubscribePush(); HW.render.pickerRefreshUpdates(); paintBell(); return; }
     if (a === 'non') { e.preventDefault(); enableNotify(); return; }
-    if (a === 'pickt') { const on = favs.toggle(act.dataset.lk, act.dataset.id); act.classList.toggle('on', on); act.setAttribute('aria-pressed', on); return; }
+    if (a === 'pickt') { const on = favs.toggle(act.dataset.lk, act.dataset.id); act.classList.toggle('on', on); act.setAttribute('aria-pressed', on); syncPushSoon(); return; }
     if (a === 'pickdone') { const d = document.getElementById('pick'); if (d) d.close(); return; }
     if (a === 'nofavs') { store.set('nofavs:' + act.dataset.lk, true); const el = document.getElementById('m-my'); if (el) el.remove(); return; }
     if (a === 'install') { e.preventDefault(); if (S.installEvt) { S.installEvt.prompt(); S.installEvt.userChoice.then(() => { S.installEvt = null; paintInstall(); }); } return; }
@@ -139,6 +140,7 @@ document.addEventListener('click', e => {
   const tr = e.target.closest('tr[data-href]');
   if (tr && !e.target.closest('a,button,input,select')) { location.hash = tr.dataset.href.slice(1); }
 });
+document.addEventListener('change', e => { const el = e.target.closest('[data-act="nscore"]'); if (el) { const P = HW.render.notifyPrefs(); P.score = el.value; store.set('notify', P); syncPushSoon(); } });
 document.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('th[data-act="psort"]')) { e.preventDefault(); e.target.click(); } });
 
 /* ---------- install (home-screen app) ---------- */
@@ -166,8 +168,28 @@ async function enableNotify() {
   const sup = notifySupport(); if (!sup.ok) { HW.render.pickerRefreshUpdates(); return; }
   let perm = Notification.permission; if (perm !== 'granted') { try { perm = await Notification.requestPermission(); } catch { } }
   const P = notifyPrefs(); P.on = perm === 'granted'; store.set('notify', P); HW.render.pickerRefreshUpdates(); paintBell();
-  if (P.on) notify('Tipoff updates are on', 'You will hear about your teams: pregame, close games, finals, injuries, trades.', { tag: 'welcome' });
+  if (P.on) { const pushed = await syncPush(); if (!pushed) notify('Tipoff updates are on', 'You will hear about your teams: pregame, close games, finals, injuries, trades.', { tag: 'welcome' }); HW.render.pickerRefreshUpdates(); }
 }
+/* push subscription: registered with the Tipoff push server (push/worker.js) when one is configured */
+const favTeams = () => { const F = favs.all(); return ORDER.flatMap(lk => (F[lk] || []).map(id => `${lk}:${id}`)); };
+let syncT = 0; function syncPushSoon() { clearTimeout(syncT); syncT = setTimeout(() => syncPush().catch(() => { }), 800); }
+async function syncPush() {
+  const cfg = HW.PUSH; const P = notifyPrefs();
+  if (!cfg || !cfg.url || !P.on || !('PushManager' in window) || !('Notification' in window) || Notification.permission !== 'granted') return false;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64(cfg.key) });
+    const r = await fetch(cfg.url.replace(/\/$/, '') + '/subscribe', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sub: sub.toJSON(), teams: favTeams(), prefs: { pre: P.pre, close: P.close, final: P.final, inj: P.inj, moves: P.moves, score: P.score } }) });
+    const ok = r.ok; store.set('push:active', ok); if (ok && !store.get('push:welcomed', false)) { store.set('push:welcomed', true); fetch(cfg.url.replace(/\/$/, '') + '/test', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ endpoint: sub.endpoint }) }).catch(() => { }); }
+    return ok;
+  } catch (e) { console.warn('push subscribe failed', e); store.set('push:active', false); return false; }
+}
+async function unsubscribePush() {
+  const cfg = HW.PUSH; store.set('push:active', false);
+  try { const reg = await navigator.serviceWorker.ready; const sub = await reg.pushManager.getSubscription(); if (sub) { if (cfg && cfg.url) fetch(cfg.url.replace(/\/$/, '') + '/unsubscribe', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ endpoint: sub.endpoint }) }).catch(() => { }); await sub.unsubscribe(); } } catch { }
+}
+const urlB64 = s => { const p = '='.repeat((4 - s.length % 4) % 4); const b = (s + p).replace(/-/g, '+').replace(/_/g, '/'); const raw = atob(b); return Uint8Array.from(raw, c => c.charCodeAt(0)); };
 async function notify(title, body, opts = {}) {
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
   const o = { body, icon: 'img/icon-192.png', badge: 'img/icon-192.png', tag: opts.tag, renotify: false, data: { url: opts.url || location.href } };
@@ -185,6 +207,7 @@ function lateAndClose(L, g) {
 }
 function checkAlerts() {
   const P = notifyPrefs(); if (!P.on || !('Notification' in window) || Notification.permission !== 'granted') return;
+  if (store.get('push:active', false)) return;   // the push server handles it, even with Tipoff closed
   const F = favs.all();
   ORDER.forEach(lk => {
     const L = LEAGUES[lk]; const mine = F[lk] || []; if (!mine.length) return;
@@ -224,9 +247,9 @@ async function checkMoves(F) {
     if (newest) store.set('moves:' + lk, newest);
   }
 }
-if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', e => { if (e.data && e.data.url) location.hash = e.data.url.replace(/^.*#/, ''); });
+if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', e => { if (e.data && e.data.url) location.hash = e.data.url.replace(/^.*#/, ''); if (e.data && e.data.resync) syncPushSoon(); });
 
 /* ---------- boot ---------- */
 S.todayYmd = todayCT();
-tick().then(route).then(() => { paintBell(); if (!store.get('onboarded', false) && !Object.values(favs.all()).some(a => a.length)) HW.render.pickerOpen(S.league || 'nba', { welcome: true }); });
+tick().then(route).then(() => { paintBell(); if (notifyPrefs().on) syncPushSoon(); if (!store.get('onboarded', false) && !Object.values(favs.all()).some(a => a.length)) HW.render.pickerOpen(S.league || 'nba', { welcome: true }); });
 })();
