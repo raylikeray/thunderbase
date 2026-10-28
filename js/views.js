@@ -2,7 +2,7 @@
 (function () {
 'use strict';
 const HW = window.HW;
-const { LEAGUES, ORDER, SPORTS, sportOf, statCategory, STAT_CATS, esc, jSoft, todayCT, addDays, compact, expand, ymdOf, dayLabel, relDay, tip, dateShort, ago, pct, sign, ordinal, store, API, WEB, logoUrl, seasonYear, favs,
+const { LEAGUES, ORDER, SPORTS, sportOf, watchFor, statCategory, STAT_CATS, esc, jSoft, todayCT, addDays, compact, expand, ymdOf, dayLabel, relDay, tip, dateShort, ago, pct, sign, ordinal, store, API, WEB, logoUrl, seasonYear, favs,
   parseEvent, isLive, isFav, interest, scoreboard, standings, rankings, record, params, aiRecord, aiFor, aiEntry, injuries, forecast, forecastCtx, leaguePlayers, S } = HW;
 const $main = document.getElementById('main');
 const COLLEGE = ['ncaam', 'ncaaw', 'ncaaf', 'ncaab'];
@@ -40,7 +40,9 @@ function bug(g, f) {
   const h = g.state === 'in' ? `<span>Live · ${esc(g.detail)}${g.sit && g.sit.short ? ` · ${esc(g.sit.short)}` : ''}</span>` : g.state === 'pre' ? `<span>${esc(tip(g.date))} CT</span>` : `<span>${esc(g.detail || 'Final')}</span>`;
   const row = (s, other) => { const lose = g.state === 'post' && s.score != null && other.score != null && s.score < other.score; return `<div class="tm"><span class="ab" style="background:${s.color}">${esc(s.abbr)}</span><span class="nm"><span class="n">${rk(s)}${esc(s.short)}${g.sit && g.sit.poss === s.id ? ' <i class="poss" title="has the ball" aria-label="has the ball"></i>' : ''}</span><small>${esc(s.rec)}</small></span><span class="s${lose ? ' lo' : ''}" data-s="${g.id}-${s.id}">${g.state === 'pre' ? '' : esc(s.score ?? '')}</span></div>`; };
   const t = f ? fcText(g, f) : null;
-  return `<a class="bug${isFav(g) ? ' fav' : ''}" href="${hrefG(g.lk, g.id)}" aria-label="${esc(g.away.name)} at ${esc(g.home.name)}, ${esc(g.detail)}"><div class="h${isLive(g) ? ' on' : ''}">${h}<span class="tv">${esc(g.state === 'post' ? 'Box score' : g.tv.label || L.tag)}</span></div>${row(g.away, g.home)}${row(g.home, g.away)}${t ? `<div class="f"><span class="${t.cls}">${t.label}</span><b><i style="width:${t.fill * 100}%"></i></b></div>` : ''}</a>`;
+  const w = g.state === 'post' ? null : watchFor(g, L)[0];
+  const tv = g.state === 'post' ? `<span class="tv">Box score</span>` : w ? `<a class="tv wl" href="${esc(w.url)}" target="_blank" rel="noopener" title="Watch on ${esc(w.label)}">${esc(g.tv.label || w.net)} ▸</a>` : `<span class="tv">${esc(g.tv.label || L.tag)}</span>`;
+  return `<div class="bug${isFav(g) ? ' fav' : ''}" data-href="${hrefG(g.lk, g.id)}" role="link" tabindex="0" aria-label="${esc(g.away.name)} at ${esc(g.home.name)}, ${esc(g.detail)}"><div class="h${isLive(g) ? ' on' : ''}">${h}${tv}</div>${row(g.away, g.home)}${row(g.home, g.away)}${t ? `<div class="f"><span class="${t.cls}">${t.label}</span><b><i style="width:${t.fill * 100}%"></i></b></div>` : ''}</div>`;
 }
 function sortGames(list) { return [...list].sort((a, b) => (a.state === 'in' ? 0 : a.state === 'pre' ? 1 : 2) - (b.state === 'in' ? 0 : b.state === 'pre' ? 1 : 2) || isFav(b) - isFav(a) || interest(b) - interest(a) || new Date(a.date) - new Date(b.date)); }
 const unit = L => L.sport === 'baseball' ? 'runs' : 'points';
@@ -80,10 +82,12 @@ function hero(L, g, f, ai, opts = {}) {
   return `<article class="hero" aria-label="${esc(g.away.name)} at ${esc(g.home.name)}">
     <div class="top"><div><h1>${tn(g.away)} at ${tn(g.home)}</h1><div class="sub">${esc(statusLine(g))}${g.note ? ' · ' + esc(g.note) : ''}</div></div>${badge}</div>
     <div class="score">${side(g.away, aLo)}${mid}${side(g.home, hLo)}</div>
-    <div class="foot"><div>${f ? fbar(L, g, f) : ''}</div><div style="display:flex;gap:8px;flex-wrap:wrap">${ai ? `<button class="btn sm" data-act="ai" data-id="${g.id}" aria-expanded="${open}" aria-controls="ai-${g.id}">${open ? 'Hide prediction' : 'Prediction'}</button>` : ''}${opts.actions || ''}</div></div>
+    <div class="foot"><div>${f ? fbar(L, g, f) : ''}</div><div style="display:flex;gap:8px;flex-wrap:wrap">${ai ? `<button class="btn sm" data-act="ai" data-id="${g.id}" aria-expanded="${open}" aria-controls="ai-${g.id}">${open ? 'Hide prediction' : 'Prediction'}</button>` : ''}${g.state !== 'post' ? watchFor(g, L).slice(0, 2).map(w => `<a class="btn sm watch" href="${esc(w.url)}" target="_blank" rel="noopener">${live ? 'Watch live' : 'Watch'} on ${esc(w.label)}</a>`).join('') : ''}${opts.actions || ''}</div></div>
     ${aiBlock(ai, open, g.id)}
   </article>`;
 }
+/* the broadcaster as a link to its service when we know one, otherwise plain text */
+const tvLink = (L, g) => { const w = g.state === 'post' ? null : watchFor(g, L)[0]; return w ? `<a class="wl" href="${esc(w.url)}" target="_blank" rel="noopener" title="Watch on ${esc(w.label)}">${esc(g.tv.label)} ▸</a>` : esc(g.tv.label); };
 function fcRow(L, g, f, ai, opts = {}) {
   const ph = f.pHome, pa = 1 - ph;
   const open = S.open.has('fc-' + g.id);
@@ -98,7 +102,7 @@ function fcRow(L, g, f, ai, opts = {}) {
       ${f.soH ? `<div><b>${sign(f.soH.pts)}</b>${esc(g.home.abbr)} out: ${esc(f.soH.name)}</div>` : ''}${f.soA ? `<div><b>${sign(-f.soA.pts)}</b>${esc(g.away.abbr)} out: ${esc(f.soA.name)}</div>` : ''}
     </div></div>`;
   return `<div class="fcrow${isFav(g) ? ' fav' : ''}">
-    <div class="fcrow-teams"><a href="${hrefG(g.lk, g.id)}">${tn(g.away)} at ${tn(g.home)}</a><small>${g.state === 'in' ? 'Live · ' + esc(g.detail) : g.state === 'post' ? esc(g.detail) + ` · ${g.away.score}–${g.home.score}` : esc(tip(g.date)) + ' CT' + (g.tv.label ? ' · ' + esc(g.tv.label) : '')}</small></div>
+    <div class="fcrow-teams"><a href="${hrefG(g.lk, g.id)}">${tn(g.away)} at ${tn(g.home)}</a><small>${g.state === 'in' ? 'Live · ' + esc(g.detail) : g.state === 'post' ? esc(g.detail) + ` · ${g.away.score}–${g.home.score}` : esc(tip(g.date)) + ' CT' + (g.tv.label ? ' · ' + tvLink(L, g) : '')}</small></div>
     <div class="fcrow-mid"><div class="fc-bar" role="img" aria-label="${esc(g.away.abbr)} ${pct(pa)}, ${esc(g.home.abbr)} ${pct(ph)}"><i style="width:${pa * 100}%;background:${g.away.color}"></i><i style="width:${ph * 100}%;background:${g.home.color}"></i></div><div class="fc-pct"><span>${esc(g.away.abbr)} ${pct(pa)}</span><span>${esc(g.home.abbr)} ${pct(ph)}</span></div></div>
     <div><button class="btn sm ghost" data-act="fc" data-id="${g.id}"${ai ? ' data-ai="1"' : ''} aria-expanded="${open}" aria-controls="fcd-${g.id}">${open ? 'Hide' : ai ? 'Prediction' : 'Why'}</button></div>
     ${detail}
@@ -254,6 +258,11 @@ async function center(lk) {
     if (P && P.calib) modelBody += `<div class="mv"><span>Calibration</span><b>${P.calib.a > 1.05 ? 'was underconfident' : P.calib.a < .95 ? 'was overconfident' : 'on target'}</b></div>`;
     if (aiRec && aiRec.byLeague && aiRec.byLeague[lk]) { const r = aiRec.byLeague[lk]; modelBody += `<div class="mv"><span>Predictions</span><b>${r.hit} of ${r.n}${r.last7 ? ` · ${r.last7.hit} of ${r.last7.n} last 7d` : ''}</b></div>`; }
     grid.push(mod('Model', modelBody, { cls: 'c3', id: 'm-model', x: 'learns nightly', href: '#record' }));
+    // where to watch: today's games by service
+    { const on = games.filter(g => g.state !== 'post'); const by = new Map();
+      on.forEach(g => { const w = watchFor(g, L)[0]; const key = w ? w.url : (g.tv.label || ''); if (!by.has(key)) by.set(key, { w, label: w ? w.label : (g.tv.label || 'TV not listed'), games: [] }); by.get(key).games.push(g); });
+      const rows = [...by.values()].sort((a, b) => (b.w ? 1 : 0) - (a.w ? 1 : 0) || b.games.length - a.games.length).slice(0, 8).map(r => `<div class="watch-row">${r.w ? `<a class="watch-net" href="${esc(r.w.url)}" target="_blank" rel="noopener">${esc(r.label)} ▸</a>` : `<span class="watch-net muted">${esc(r.label)}</span>`}<span class="watch-games">${r.games.slice(0, 6).map(g => `<a href="${hrefG(lk, g.id)}">${esc(g.away.abbr)}–${esc(g.home.abbr)}${g.state === 'in' ? ' <i class="muted">live</i>' : ` <i class="muted">${esc(tip(g.date))}</i>`}</a>`).join(' · ')}${r.games.length > 6 ? ` <span class="muted">+${r.games.length - 6}</span>` : ''}</span></div>`).join('');
+      if (rows) grid.push(mod('Where to watch', rows + '<p class="note">Tap a service to open its app or site. Listings are ESPN\'s; regional channels vary by market.</p>', { cls: 'c3', id: 'm-watch', x: L.weekly ? 'this week' : 'today' })); }
     // news
     if (news && news.articles && news.articles.length) grid.push(mod('News', `<div class="news">${news.articles.slice(0, 5).map(a => { const img = a.images && a.images[0] && a.images[0].url; return `<a href="${esc(a.links && a.links.web && a.links.web.href || '#')}" target="_blank" rel="noopener">${img ? `<img class="im" src="${esc(img)}" alt="" loading="lazy">` : '<span class="im"></span>'}<div><h5>${esc(a.headline)}</h5><small>${esc(ago(a.published))}${a.byline ? ' · ' + esc(a.byline) : ''}</small></div></a>`; }).join('')}</div>`, { cls: 'c3', id: 'm-news', x: 'latest', href: hrefS('news', lk) }));
     parts.push(`<div class="grid">${grid.join('')}</div>`);

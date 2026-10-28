@@ -157,9 +157,10 @@ document.addEventListener('click', e => {
   }
   const jl = e.target.closest('.jump a[href^="#m-"]');
   if (jl) { e.preventDefault(); const el = document.getElementById(jl.getAttribute('href').slice(1)); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
-  const tr = e.target.closest('tr[data-href]');
+  const tr = e.target.closest('[data-href]');
   if (tr && !e.target.closest('a,button,input,select')) { location.hash = tr.dataset.href.slice(1); }
 });
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('[data-href][tabindex]')) { e.preventDefault(); location.hash = e.target.dataset.href.slice(1); } });
 document.addEventListener('change', e => { const el = e.target.closest('[data-act="nscore"]'); if (el) { const P = HW.render.notifyPrefs(); P.score = el.value; store.set('notify', P); syncPushSoon(); } });
 document.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('th[data-act="psort"]')) { e.preventDefault(); e.target.click(); } });
 

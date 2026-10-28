@@ -75,7 +75,7 @@ function parseTeamSide(x, L) {
 function tvOf(c) {
   const nat = [], loc = [];
   (c.geoBroadcasts || []).forEach(b => { const n = b.media && b.media.shortName; if (!n) return; ((b.market && b.market.type) === 'National' ? nat : loc).push(n); });
-  (c.broadcasts || []).forEach(b => (b.names || []).forEach(n => (b.market === 'national' ? nat : loc).push(n)));
+  (c.broadcasts || []).forEach(b => { const names = b.names && b.names.length ? b.names : (b.media && b.media.shortName ? [b.media.shortName] : []); const national = typeof b.market === 'string' ? b.market === 'national' : !!(b.market && /national/i.test(b.market.type || '')); names.forEach(n => (national ? nat : loc).push(n)); });   // scoreboard and game-summary shapes differ
   const u = a => [...new Set(a)];
   return { national: u(nat), local: u(loc), label: u(nat).join(' · ') || u(loc).filter(n => !/League Pass/i.test(n)).slice(0, 2).join(' · ') || (u(loc).length ? u(loc)[0] : '') };
 }
@@ -277,11 +277,65 @@ async function leaguePlayers(L, season) {
   return { rows, label };
 }
 
+/* ---------- where to watch: broadcaster name → the service's live page (universal links open the app when installed) ---------- */
+const WATCH = [
+  [/^(ESPN\+?|ESPN ?[23]|ESPNU|ESPNEWS|ESPN Deportes|ESPN3|ESPN App|SECN\+?|SEC Network\+?|ACCN\+?|ACCNX|ACC Network( Extra)?|Longhorn Network|LHN|Big 12 Now)$/i, 'ESPN', 'https://www.espn.com/watch'],
+  [/^ABC$/i, 'ABC', 'https://abc.com/watch-live'],
+  [/^(NBC|NBC Sports)$/i, 'NBC', 'https://www.nbc.com/live'],
+  [/^Peacock$/i, 'Peacock', 'https://www.peacocktv.com/sports'],
+  [/^(USA|USA Network)$/i, 'USA Network', 'https://www.usanetwork.com/live'],
+  [/^CBS$/i, 'CBS', 'https://www.cbs.com/live-tv/'],
+  [/^(CBSSN|CBS Sports Network)$/i, 'CBS Sports Network', 'https://www.cbssports.com/cbs-sports-network/'],
+  [/^Paramount\+$/i, 'Paramount+', 'https://www.paramountplus.com/live-tv/'],
+  [/^(FOX|FS1|FS2|FOX Sports ?[12]?|FOX Deportes|FOX One)$/i, 'FOX Sports', 'https://www.foxsports.com/live'],
+  [/^(BTN|Big Ten Network)$/i, 'Big Ten Network', 'https://www.foxsports.com/live/btn'],
+  [/^(TNT|TBS|truTV|Max|HBO Max|TNT Sports)$/i, 'Max', 'https://www.max.com'],
+  [/^(Prime Video|Amazon Prime Video|Amazon|Prime)$/i, 'Prime Video', 'https://www.amazon.com/primevideo', { basketball: 'https://www.amazon.com/nba', football: 'https://www.amazon.com/tnf' }],
+  [/^Netflix$/i, 'Netflix', 'https://www.netflix.com'],
+  [/^Apple TV\+?$/i, 'Apple TV', 'https://tv.apple.com'],
+  [/^(NBA ?TV)$/i, 'NBA TV', 'https://www.nba.com/watch/nba-tv'],
+  [/^NBA League Pass$/i, 'NBA League Pass', 'https://www.nba.com/watch'],
+  [/^WNBA League Pass$/i, 'WNBA League Pass', 'https://www.wnba.com/watch'],
+  [/^ION$/i, 'ION', 'https://iontelevision.com'],
+  [/^(The CW|CW)$/i, 'The CW', 'https://www.cwtv.com/live'],
+  [/^(NFL Network|NFLN|NFL\+|NFL RedZone)$/i, 'NFL+', 'https://www.nfl.com/plus/'],
+  [/^(YouTube TV|YouTube|NFL Sunday Ticket)$/i, 'YouTube TV', 'https://tv.youtube.com'],
+  [/^(MLB Network|MLBN)$/i, 'MLB Network', 'https://www.mlb.com/network'],
+  [/^MLB\.TV$/i, 'MLB.TV', 'https://www.mlb.com/tv'],
+  [/^(Roku|The Roku Channel)$/i, 'The Roku Channel', 'https://therokuchannel.roku.com'],
+  [/FanDuel Sports|FDSN/i, 'FanDuel Sports Network', 'https://www.fanduelsportsnetwork.com'],
+  [/^YES( Network)?$/i, 'YES Network', 'https://www.yesnetwork.com'],
+  [/^MSG/i, 'MSG Networks', 'https://www.msgnetworks.com'],
+  [/^NESN/i, 'NESN', 'https://nesn.com'],
+  [/^SNY$/i, 'SNY', 'https://sny.tv'],
+  [/Marquee/i, 'Marquee Sports Network', 'https://www.marqueesportsnetwork.com'],
+  [/Spectrum SportsNet/i, 'Spectrum SportsNet', 'https://www.spectrumsportsnet.com'],
+  [/^NBCS|^NBC Sports (Bay Area|Boston|California|Philadelphia|Chicago)/i, 'NBC Sports', 'https://www.nbcsports.com/regional'],
+  [/ROOT Sports/i, 'ROOT Sports', 'https://www.rootsports.com'],
+  [/Monumental/i, 'Monumental Sports Network', 'https://monumentalsportsnetwork.com'],
+  [/Altitude/i, 'Altitude', 'https://www.altitudesports.net'],
+  [/Space City/i, 'Space City Home Network', 'https://spacecityhn.com'],
+  [/CHSN|Chicago Sports Network/i, 'Chicago Sports Network', 'https://chsn.com'],
+  [/Gulf Coast Sports/i, 'Gulf Coast Sports', 'https://www.gulfcoastsports.com'],
+  [/Jazz\+|KJZZ/i, 'Jazz+', 'https://www.nba.com/jazz/jazzplus'],
+  [/Mountain West Network|MW Network/i, 'Mountain West Network', 'https://themw.com/watch'],
+  [/^Stadium$/i, 'Stadium', 'https://watchstadium.com'],
+  [/^(ESPN\+ ?\/ ?Hulu|Hulu)$/i, 'Hulu', 'https://www.hulu.com/live-tv']
+];
+/* one broadcaster name → { label, url } or null (radio, unknown regional channels) */
+function watchLink(name, L) {
+  const n = String(name || '').trim(); if (!n || /radio|sirius/i.test(n)) return null;
+  for (const [re, label, url, bySport] of WATCH) if (re.test(n)) return { label, url: (bySport && L && bySport[L.sport]) || url, net: n };
+  return null;
+}
+/* every distinct service a game is on, national first */
+function watchFor(g, L) { const out = []; [...(g.tv.national || []), ...(g.tv.local || [])].forEach(n => { const w = watchLink(n, L); if (w && !out.some(o => o.url === w.url)) out.push(w); }); return out; }
+
 /* ---------- shared state ---------- */
 const S = { today: {}, todayYmd: null, lastOk: 0, err: false, timer: null, route: null, open: new Set(), prevScores: {}, league: 'nba' };
 ORDER.forEach(k => S.today[k] = []);
 const allToday = () => ORDER.flatMap(k => S.today[k]);
 
-Object.assign(HW, { sportOf, fracLeft, statCategory, STAT_CATS, esc, j, jSoft, cache, todayCT, addDays, compact, expand, ymdOf, dayLabel, relDay, tip, dateShort, timeCT, ago, pct, sign, ordinal, hx, darkOf, Phi, store, API, API2, WEB, logoUrl, seasonYear, favs,
+Object.assign(HW, { watchLink, watchFor, sportOf, fracLeft, statCategory, STAT_CATS, esc, j, jSoft, cache, todayCT, addDays, compact, expand, ymdOf, dayLabel, relDay, tip, dateShort, timeCT, ago, pct, sign, ordinal, hx, darkOf, Phi, store, API, API2, WEB, logoUrl, seasonYear, favs,
   parseEvent, isLive, isFav, isRanked, order, interest, scoreboard, standings, priorStandings, rankings, ratings, record, params, aiRecord, aiFor, aiEntry, injuries, forecast, forecastCtx, leaguePlayers, S, allToday });
 })();
