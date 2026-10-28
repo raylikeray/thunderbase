@@ -278,7 +278,8 @@ async function leaguePlayers(L, season) {
    SERVICES: every app a game can be watched in. `match` = channel names the service itself streams; `channels` = what a
    live-TV bundle carries. The viewer picks the services they pay for (store key `watch`, in priority order); a game's
    options are their services that carry its channel first, then the channel's own app. On Android the link is an
-   intent:// URL that opens the installed app and falls back to the web; elsewhere it is the service's live page. */
+   intent: URL that launches the installed app (falls back to the web page when it isn't installed); elsewhere it is the
+   service's live page. Sling's web player refuses to play inside an installed web app, so the app launch matters there. */
 const NAT = {
   espnFam: /^(ESPN ?[23]?|ESPNU|ESPNEWS|ESPN Deportes|ESPN3|ESPN App|SECN|SEC Network|ACCN|ACCNX|ACC Network( Extra)?|Longhorn Network|LHN)$/i,
   cable: /^(TNT|TBS|truTV|NBA ?TV|FS1|FS2|FOX Sports ?[12]|USA( Network)?|NFL Network|NFLN|NFL RedZone|MLB Network|MLBN|BTN|Big Ten Network|CBSSN|CBS Sports Network)$/i,
@@ -291,7 +292,7 @@ const SERVICES = {
   sling:     { label: 'Sling TV', short: 'Sling', web: 'https://watch.sling.com', android: 'com.sling', host: 'watch.sling.com/', bundle: true, channels: any(NAT.espnFam, NAT.cable, NAT.bcast) },
   youtubetv: { label: 'YouTube TV', short: 'YouTube TV', web: 'https://tv.youtube.com', android: 'com.google.android.youtube.tvunplugged', host: 'tv.youtube.com/', bundle: true, channels: any(NAT.espnFam, NAT.cable, NAT.bcast, /^(CBS|ION|The CW|CW)$/i) },
   hululive:  { label: 'Hulu + Live TV', short: 'Hulu', web: 'https://www.hulu.com/live-tv', android: 'com.hulu.plus', host: 'www.hulu.com/live-tv', bundle: true, channels: any(NAT.espnFam, NAT.cable, NAT.bcast, /^(CBS|ION|The CW|CW|ESPN\+)$/i) },
-  fubo:      { label: 'Fubo', short: 'Fubo', web: 'https://www.fubo.tv', android: 'com.fubo.android', host: 'www.fubo.tv/', bundle: true, channels: any(NAT.espnFam, /^(NBA ?TV|FS1|FS2|USA( Network)?|NFL Network|NFLN|NFL RedZone|MLB Network|MLBN|BTN|Big Ten Network|CBSSN|CBS Sports Network|CBS|ION|The CW|CW)$/i, NAT.bcast, NAT.regional) },
+  fubo:      { label: 'Fubo', short: 'Fubo', web: 'https://www.fubo.tv', android: 'tv.fubo.mobile', host: 'www.fubo.tv/', bundle: true, channels: any(NAT.espnFam, /^(NBA ?TV|FS1|FS2|USA( Network)?|NFL Network|NFLN|NFL RedZone|MLB Network|MLBN|BTN|Big Ten Network|CBSSN|CBS Sports Network|CBS|ION|The CW|CW)$/i, NAT.bcast, NAT.regional) },
   directv:   { label: 'DirecTV Stream', short: 'DirecTV', web: 'https://stream.directv.com', android: 'com.att.tv', host: 'stream.directv.com/', bundle: true, channels: any(NAT.espnFam, NAT.cable, NAT.bcast, /^(CBS|ION|The CW|CW)$/i, NAT.regional) },
   // networks' own apps and streamers
   abc:       { label: 'ABC', short: 'ABC', web: 'https://abc.com/watch-live', android: 'com.disney.datg.videoplatforms.android.abc', host: 'abc.com/watch-live', match: /^ABC$/i },
@@ -303,7 +304,7 @@ const SERVICES = {
   max:       { label: 'Max', short: 'Max', web: 'https://play.max.com', android: 'com.wbd.stream', host: 'play.max.com/', match: /^(TNT|TBS|truTV|Max|HBO Max|TNT Sports)$/i },
   prime:     { label: 'Prime Video', short: 'Prime', web: 'https://www.amazon.com/primevideo', webBy: { basketball: 'https://www.amazon.com/nba', football: 'https://www.amazon.com/tnf' }, android: 'com.amazon.avod.thirdpartyclient', host: 'app.primevideo.com/', match: /^(Prime Video|Amazon Prime Video|Amazon|Prime)$/i },
   netflix:   { label: 'Netflix', short: 'Netflix', web: 'https://www.netflix.com', android: 'com.netflix.mediaclient', host: 'www.netflix.com/', match: /^Netflix$/i },
-  appletv:   { label: 'Apple TV', short: 'Apple TV', web: 'https://tv.apple.com', match: /^Apple TV\+?$/i },
+  appletv:   { label: 'Apple TV', short: 'Apple TV', web: 'https://tv.apple.com', android: 'com.apple.atve.androidtv.appletv', match: /^Apple TV\+?$/i },
   nba:       { label: 'NBA app · League Pass', short: 'NBA app', web: 'https://www.nba.com/watch', android: 'com.nbaimd.gametime.nba2011', host: 'www.nba.com/watch', match: /^(NBA League Pass|NBA ?TV)$/i },
   wnba:      { label: 'WNBA app · League Pass', short: 'WNBA app', web: 'https://www.wnba.com/watch', match: /^(WNBA League Pass|ION)$/i },
   nfl:       { label: 'NFL+', short: 'NFL+', web: 'https://www.nfl.com/plus/', android: 'com.gotv.nflgamecenter.us.lite', host: 'www.nfl.com/plus/', match: /^(NFL Network|NFLN|NFL\+|NFL RedZone)$/i },
@@ -327,7 +328,8 @@ const IS_ANDROID = typeof navigator !== 'undefined' && /Android/i.test(navigator
 function serviceHref(id, L, webOverride) {
   const s = SERVICES[id]; if (!s) return webOverride || '';
   const web = webOverride || (s.webBy && L && s.webBy[L.sport]) || s.web;
-  if (IS_ANDROID && s.android && s.host) return `intent://${s.host}#Intent;scheme=https;package=${s.android};S.browser_fallback_url=${encodeURIComponent(web)};end`;
+  // launch the app itself (its main activity), which works whether or not the app registers web deep links; the web page is the fallback when it isn't installed
+  if (IS_ANDROID && s.android) return `intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=${s.android};S.browser_fallback_url=${encodeURIComponent(web)};end`;
   return web;
 }
 /* a game's watch options: the viewer's own services that carry it (their order), then the channel's own app */
