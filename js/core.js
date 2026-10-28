@@ -165,14 +165,18 @@ function strength(L, id, ctx) {
   if (R && R.elo != null) return { rating: (R.elo - 1500) / L.eloPerPoint, gp: R.gp || 0, weight: 1, form: 0, source: 'elo', elo: R.elo };
   return strengthFallback(id, ctx.cur, ctx.prior);
 }
+/* players ruled out, weighted by their scoring: about 0.18 points of margin per point per game, capped at 8.
+   (The nightly record is scored without this, since injury reports aren't kept historically.) */
 function starOut(L, side, ctx) {
   if (!ctx.inj || !ctx.inj.byTeam[side.id]) return null;
   const out = ctx.inj.byTeam[side.id].list.filter(x => /out|suspen/i.test(x.status || ''));
   if (!out.length) return null;
-  const names = new Set(out.map(x => x.athlete && x.athlete.displayName));
+  const ppgOf = n => { const r = ctx.ppg && ctx.ppg[(n || '').toLowerCase()]; return r && r.teamId === side.id ? r.pts : null; };
   const L1 = (side.leaders || []).find(l => /points/i.test(l.name)); const top = L1 && L1.leaders && L1.leaders[0];
-  if (top && top.athlete && names.has(top.athlete.displayName)) { const ppg = parseFloat(top.displayValue) || 20; return { name: top.athlete.displayName, pts: -Math.min(5, ppg * 0.18) }; }
-  return null;
+  let total = 0; const names = [];
+  out.forEach(x => { const n = x.athlete && x.athlete.displayName; if (!n) return; let ppg = ppgOf(n); if (ppg == null && top && top.athlete && top.athlete.displayName === n) ppg = parseFloat(top.displayValue) || 20; if (ppg != null && ppg >= 6) { total += ppg * 0.18; names.push(n.split(' ').pop()); } });
+  if (!names.length) return null;
+  return { name: names.join(', '), names, pts: -Math.min(8, total) };
 }
 function forecast(L, g, ctx) {
   const H = strength(L, g.home.id, ctx), A = strength(L, g.away.id, ctx);
@@ -197,10 +201,11 @@ function forecast(L, g, ctx) {
 const ctxCache = new Map();
 async function forecastCtx(L, ymd) {
   const k = L.key + ymd; const hit = ctxCache.get(k); if (hit && Date.now() - hit.t < 300000) return hit.v;
-  const [rt, cur, yday, inj] = await Promise.all([ratings(L), standings(L).catch(() => null), scoreboard(L, addDays(ymd, -1)).catch(() => []), injuries(L)]);
+  const [rt, cur, yday, inj, lp] = await Promise.all([ratings(L), standings(L).catch(() => null), scoreboard(L, addDays(ymd, -1)).catch(() => []), injuries(L), L.hasInjuries ? leaguePlayers(L).catch(() => null) : null]);
   const prior = rt ? null : await priorStandings(L);
   const b2b = new Set(); yday.forEach(g => { if (g.state !== 'pre') { b2b.add(g.home.id); b2b.add(g.away.id); } });
-  const v = { ratings: rt, cur, prior, b2b, inj };
+  const ppg = {}; if (lp) lp.rows.forEach(r => { ppg[(r.name || '').toLowerCase()] = { pts: r.pts, teamId: r.teamId }; });
+  const v = { ratings: rt, cur, prior, b2b, inj, ppg };
   ctxCache.set(k, { t: Date.now(), v }); return v;
 }
 
