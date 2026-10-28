@@ -87,7 +87,7 @@ function standingsMini(L, cur, groupMatch, n = 10, title) {
 }
 function rankMini(L, R, n = 10) {
   if (!R) return '';
-  return `<section class="sheet"><div class="sheet-h"><h2>${esc(L.label)} Top ${n}</h2><a class="more" href="${href(L, 'rankings')}">${esc(R.name)}</a></div><div class="tw"><table class="t"><tbody>${R.ranks.slice(0, n).map(r => `<tr class="click${favs.has(L.key, r.team.id) ? ' okc' : ''}" data-href="${href(L, 'team-' + r.team.id)}"><td><span class="team"><span class="rank">${r.rank}</span><img class="headshot sq" src="${esc(r.team.logo || '')}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"><a href="${href(L, 'team-' + r.team.id)}">${esc(r.team.name)}</a></span></td><td>${esc(r.rec || '')}</td><td class="muted">${r.trend === '-' || !r.trend ? '' : esc(r.trend)}</td></tr>`).join('')}</tbody></table></div></section>`;
+  return `<section class="sheet"><div class="sheet-h"><h2>${esc(L.label)} Top ${n}</h2><a class="more" href="${href(L, 'rankings')}">${esc(R.name)}</a></div><div class="tw"><table class="t"><tbody>${R.ranks.slice(0, n).map(r => `<tr class="click${favs.has(L.key, r.team.id) ? ' okc' : ''}" data-href="${href(L, 'team-' + r.team.id)}"><td><span class="team"><span class="rank">${r.rank}</span><img class="headshot sq" src="${esc(r.team.logo || '')}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"><a href="${href(L, 'team-' + r.team.id)}">${esc(r.team.short)}</a></span></td><td>${esc(r.rec || '')}</td><td class="muted">${r.trend === '-' || !r.trend ? '' : esc(r.trend)}</td></tr>`).join('')}</tbody></table></div></section>`;
 }
 function injPill(status) {
   const s = (status || '').toLowerCase();
