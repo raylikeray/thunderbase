@@ -1,4 +1,4 @@
-/* Hardwood — data layer: fetching, parsing, the forecast model, shared state. */
+/* Tipoff — data layer: fetching, parsing, the forecast model, shared state. */
 (function () {
 'use strict';
 const HW = window.HW;

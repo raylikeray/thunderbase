@@ -1,4 +1,4 @@
-/* Hardwood — Broadcast (v4).
+/* Tipoff — Broadcast (v4).
    Layout: league tabs across the top (NBA · WNBA · NCAA M · NCAA W), a section bar under them, a scoreboard rail,
    then a 12-column grid of modules: the command center. Broadcast grammar: ink module headers with an angled
    orange tab, team abbreviations in their own color block, condensed numerals, a red live block. White panels
@@ -44,7 +44,8 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 .bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:50;background:var(--surface);border-bottom:1px solid var(--line);box-shadow:var(--shadow)}
 .bar-in{max-width:1400px;margin:0 auto;display:flex;align-items:stretch;height:56px;padding-left:var(--gut);padding-right:var(--gut-r)}
 .brand{display:flex;align-items:center;gap:10px;font:900 24px/1 var(--cond);font-style:italic;letter-spacing:.02em;text-transform:uppercase;text-decoration:none;color:var(--ink);white-space:nowrap;padding-right:16px}
-.brand img{width:30px;height:30px;display:block;flex:none;border-radius:7px}
+.brand .mk{width:30px;height:30px;display:block;flex:none}
+.mk-t{fill:var(--ink)}.mk-b{fill:var(--accent)}
 .ltabs{display:flex;align-items:stretch;overflow-x:auto;scrollbar-width:none}
 .ltabs::-webkit-scrollbar{display:none}
 .ltabs a{display:flex;align-items:center;padding:0 16px;font:800 15px/1 var(--cond);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2);text-decoration:none;position:relative;white-space:nowrap}

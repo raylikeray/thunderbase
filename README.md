@@ -1,6 +1,6 @@
-# Hardwood
+# Tipoff
 
-Every basketball game in one place: NBA, WNBA, NCAA M and NCAA W. Live at **https://raylikeray.github.io/hardwood/**
+Every basketball game in one place: NBA, WNBA, NCAA M and NCAA W (football and baseball next). Live at **https://raylikeray.github.io/tipoff/**
 
 - **Layout:** a command center per league. Pick a league in the top tabs (NBA · WNBA · NCAA M · NCAA W) and the home screen shows everything about it at once: today's scoreboard rail, tonight's call (the featured game with the AI read), standings or rankings, leaders, injuries with their line impact (or 7-day movers for college), power ratings, the model's record, and news. The section bar under the tabs opens the full pages: Scores, Standings, Rankings (college), Teams, Players, Forecasts, Injuries (NBA/WNBA), News, Record. Links are `#<league>/<section>`; old links still work.
 - **Personal:** "Pick my teams" on each league screen opens a logo picker (saved on the device only, no accounts). Your teams get a strip at the top with the next or live game, the forecast, the last result and who is out; their games go first in the scoreboard and their rows are highlighted. The site installs to the home screen (manifest + `sw.js`; an install strip appears once on phones). The written matchup pieces are labeled **Prediction** in the UI.
@@ -11,5 +11,5 @@ Every basketball game in one place: NBA, WNBA, NCAA M and NCAA W. Live at **http
 - No build step. Edit `index.html`, `css/app.css`, `js/*.js` and push; bump the `?v=` on the asset links in `index.html` so browsers pick up changes.
 
 ## Design: Broadcast
-Mark: an italic H built from two floor planks with the center-court circle on the half-court line (`img/mark.svg`; icons in `img/`).
+Mark: a disc split by the line at center court, the top half already tipping off (`img/symbol.svg`; app icon `img/mark.svg`; PNG icons in `img/`). Two-tone: ink over orange on light, white over orange on dark.
 Studio-gray ground, white panels, ink module headers with an angled orange tab, team abbreviations in their own color block, condensed numerals for scores and percentages, a red block for anything live. Barlow for text, Barlow Condensed for numbers and labels. Dark mode is the same system on near-black. All tokens are at the top of `css/app.css`; the 12-column module grid collapses to two columns on tablets and one on phones, where a sticky jump bar moves between modules.

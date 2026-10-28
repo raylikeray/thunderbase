@@ -1,4 +1,4 @@
-// Hardwood nightly jobs. Runs in GitHub Actions (Node 20+).
+// Tipoff nightly jobs. Runs in GitHub Actions (Node 20+).
 //   node tools/nightly.mjs ratings   → data/<league>/{ratings,record,state}.json (margin Elo + forecast record vs ESPN BPI)
 //   node tools/nightly.mjs tune      → data/<league>/params.json (re-fits home court, rest, spread, rating speed and a calibration layer
 //                                      by replaying the season; the ratings are rebuilt with the winning mix)
@@ -9,7 +9,7 @@ const { LEAGUES, ORDER, ESPN, TZ } = createRequire(import.meta.url)('../js/confi
 
 const mode = process.argv[2] || 'ratings';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-async function get(u, tries = 2) { for (let i = 0; ; i++) { try { const r = await fetch(u, { headers: { 'user-agent': 'hardwood-nightly' } }); if (!r.ok) throw new Error(u + ' ' + r.status); return await r.json(); } catch (e) { if (i >= tries) throw e; await sleep(800 * (i + 1)); } } }
+async function get(u, tries = 2) { for (let i = 0; ; i++) { try { const r = await fetch(u, { headers: { 'user-agent': 'tipoff-nightly' } }); if (!r.ok) throw new Error(u + ' ' + r.status); return await r.json(); } catch (e) { if (i >= tries) throw e; await sleep(800 * (i + 1)); } } }
 const soft = async u => { try { return await get(u); } catch { return null; } };
 const ymdFmt = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
 const todayCT = () => { const d = new Date(); const h = +new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour: 'numeric', hour12: false }).format(d) % 24; const y = ymdFmt.format(d); return h < 4 ? addDays(y, -1) : y; };

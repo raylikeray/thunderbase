@@ -1,4 +1,4 @@
-/* Hardwood — shell: freshness, polling, router, delegated actions. */
+/* Tipoff — shell: freshness, polling, router, delegated actions. */
 (function () {
 'use strict';
 const HW = window.HW;
@@ -92,7 +92,7 @@ async function route() {
     if (seq === navSeq) S.route = res || null;
   } catch (e) { console.error(e); if (seq === navSeq) $main.innerHTML = HW.render.failMsg('this page'); }
   const names = { center: '', scores: 'Scores', game: 'Game', standings: 'Standings', rankings: 'Rankings', teams: 'Teams', team: 'Team', players: 'Players', player: 'Player', forecasts: 'Forecasts', injuries: 'Injuries', news: 'News', record: 'The record' };
-  document.title = r.name === 'center' ? `${LEAGUES[r.lk].label} · Hardwood` : r.name === 'record' ? 'The record · Hardwood' : `${LEAGUES[r.lk].label} ${names[r.name] || ''} · Hardwood`;
+  document.title = r.name === 'center' ? `${LEAGUES[r.lk].label} · Tipoff` : r.name === 'record' ? 'The record · Tipoff' : `${LEAGUES[r.lk].label} ${names[r.name] || ''} · Tipoff`;
   // in-page jump bar: highlight the module at the top of the screen
   const jump = document.querySelector('.jump');
   if (jump) {
@@ -146,7 +146,7 @@ function paintInstall() {
   const canPrompt = !!S.installEvt, ios = isIOS() && /Safari/.test(navigator.userAgent) && !/CriOS|FxiOS/.test(navigator.userAgent);
   if (!canPrompt && !ios) return;
   const el = document.createElement('div'); el.id = 'install'; el.className = 'install';
-  el.innerHTML = `<img src="img/mark.svg" alt="" width="34" height="34"><div><b>Put Hardwood on your home screen.</b> ${ios ? 'Tap <span class="kbd">Share</span> then <span class="kbd">Add to Home Screen</span>. It opens full screen like an app.' : 'It opens full screen like an app, no browser bar.'}</div>${canPrompt ? '<button class="btn sm" data-act="install">Install</button>' : ''}<button class="btn sm ghost" data-act="install-later" aria-label="Not now">Not now</button>`;
+  el.innerHTML = `<img src="img/mark.svg" alt="" width="34" height="34"><div><b>Put Tipoff on your home screen.</b> ${ios ? 'Tap <span class="kbd">Share</span> then <span class="kbd">Add to Home Screen</span>. It opens full screen like an app.' : 'It opens full screen like an app, no browser bar.'}</div>${canPrompt ? '<button class="btn sm" data-act="install">Install</button>' : ''}<button class="btn sm ghost" data-act="install-later" aria-label="Not now">Not now</button>`;
   document.body.appendChild(el);
 }
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); S.installEvt = e; paintInstall(); });

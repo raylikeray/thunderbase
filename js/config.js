@@ -1,4 +1,4 @@
-/* Hardwood — league configuration. Shared by the site (browser) and tools/nightly.mjs (Node). */
+/* Tipoff — league configuration. Shared by the site (browser) and tools/nightly.mjs (Node). */
 (function (root) {
   'use strict';
   const LEAGUES = {
@@ -37,6 +37,6 @@
     v2: 'https://site.api.espn.com/apis/v2/sports/basketball/',
     web: 'https://site.web.api.espn.com/apis/common/v3/sports/basketball/'
   };
-  const out = { LEAGUES, ORDER, ESPN, TZ: 'America/Chicago', SITE: 'Hardwood' };
+  const out = { LEAGUES, ORDER, ESPN, TZ: 'America/Chicago', SITE: 'Tipoff' };
   if (typeof module !== 'undefined' && module.exports) module.exports = out; else root.HW = Object.assign(root.HW || {}, out);
 })(typeof globalThis !== 'undefined' ? globalThis : this);
