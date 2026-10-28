@@ -40,7 +40,7 @@ function bug(g, f) {
   const t = f ? fcText(g, f) : null;
   return `<a class="bug${isFav(g) ? ' fav' : ''}" href="${hrefG(g.lk, g.id)}" aria-label="${esc(g.away.name)} at ${esc(g.home.name)}, ${esc(g.detail)}"><div class="h${isLive(g) ? ' on' : ''}">${h}<span class="tv">${esc(g.state === 'post' ? 'Box score' : g.tv.label || L.tag)}</span></div>${row(g.away, g.home)}${row(g.home, g.away)}${t ? `<div class="f"><span class="${t.cls}">${t.label}</span><b><i style="width:${t.fill * 100}%"></i></b></div>` : ''}</a>`;
 }
-function sortGames(list) { return [...list].sort((a, b) => (a.state === 'in' ? 0 : a.state === 'pre' ? 1 : 2) - (b.state === 'in' ? 0 : b.state === 'pre' ? 1 : 2) || interest(b) - interest(a) || new Date(a.date) - new Date(b.date)); }
+function sortGames(list) { return [...list].sort((a, b) => (a.state === 'in' ? 0 : a.state === 'pre' ? 1 : 2) - (b.state === 'in' ? 0 : b.state === 'pre' ? 1 : 2) || isFav(b) - isFav(a) || interest(b) - interest(a) || new Date(a.date) - new Date(b.date)); }
 function whyText(L, g, f) {
   const bits = [];
   const gap = f.H.rating - f.A.rating; const lead = gap >= 0 ? g.home : g.away;
@@ -63,7 +63,7 @@ function fbar(L, g, f) {
 function aiBlock(ai, open, id) {
   if (!ai) return '';
   const keys = (ai.keys || []).map(k => `<li>${esc(k)}</li>`).join('');
-  return `<div class="ai" id="ai-${id}" ${open ? '' : 'hidden'}><h4>AI read <small>Claude · ${esc(ai.generatedLabel || 'this morning')} · graded the next morning · not betting advice</small></h4>${ai.headline ? `<p><b>${esc(ai.headline)}</b></p>` : ''}<p>${esc(ai.read || '')}</p>${keys ? `<ul>${keys}</ul>` : ''}${ai.pick ? `<p class="meta" style="margin-top:8px">Lean: ${esc(ai.pick)}${ai.confidence ? ' · ' + esc(ai.confidence) + ' confidence' : ''}</p>` : ''}</div>`;
+  return `<div class="ai" id="ai-${id}" ${open ? '' : 'hidden'}><h4>Prediction <small>written ${esc(ai.generatedLabel || 'this morning')} · graded the next morning · not betting advice</small></h4>${ai.headline ? `<p><b>${esc(ai.headline)}</b></p>` : ''}<p>${esc(ai.read || '')}</p>${keys ? `<ul>${keys}</ul>` : ''}${ai.pick ? `<p class="meta" style="margin-top:8px">Lean: ${esc(ai.pick)}${ai.confidence ? ' · ' + esc(ai.confidence) + ' confidence' : ''}</p>` : ''}</div>`;
 }
 function hero(L, g, f, ai, opts = {}) {
   const live = isLive(g), pre = g.state === 'pre';
@@ -75,7 +75,7 @@ function hero(L, g, f, ai, opts = {}) {
   return `<article class="hero" aria-label="${esc(g.away.name)} at ${esc(g.home.name)}">
     <div class="top"><div><h1>${tn(g.away)} at ${tn(g.home)}</h1><div class="sub">${esc(statusLine(g))}${g.note ? ' · ' + esc(g.note) : ''}</div></div>${badge}</div>
     <div class="score">${side(g.away, aLo)}${mid}${side(g.home, hLo)}</div>
-    <div class="foot"><div>${f ? fbar(L, g, f) : ''}</div><div style="display:flex;gap:8px;flex-wrap:wrap">${ai ? `<button class="btn sm" data-act="ai" data-id="${g.id}" aria-expanded="${open}" aria-controls="ai-${g.id}">${open ? 'Hide AI read' : 'AI read'}</button>` : ''}${opts.actions || ''}</div></div>
+    <div class="foot"><div>${f ? fbar(L, g, f) : ''}</div><div style="display:flex;gap:8px;flex-wrap:wrap">${ai ? `<button class="btn sm" data-act="ai" data-id="${g.id}" aria-expanded="${open}" aria-controls="ai-${g.id}">${open ? 'Hide prediction' : 'Prediction'}</button>` : ''}${opts.actions || ''}</div></div>
     ${aiBlock(ai, open, g.id)}
   </article>`;
 }
@@ -83,7 +83,7 @@ function fcRow(L, g, f, ai, opts = {}) {
   const ph = f.pHome, pa = 1 - ph;
   const open = S.open.has('fc-' + g.id);
   const src = f.source === 'elo' ? 'Elo' : 'margin (early-season fallback)';
-  const detail = `<div class="fc-detail" id="fcd-${g.id}" ${open ? '' : 'hidden'}>${ai ? `<p><b>AI read${ai.headline ? ': ' + esc(ai.headline) : ''}</b></p><p>${esc(ai.read)}</p>${(ai.keys || []).length ? `<ul style="margin:0 0 8px;padding-left:18px">${ai.keys.map(k => `<li>${esc(k)}</li>`).join('')}</ul>` : ''}` : ''}
+  const detail = `<div class="fc-detail" id="fcd-${g.id}" ${open ? '' : 'hidden'}>${ai ? `<p><b>Prediction${ai.headline ? ': ' + esc(ai.headline) : ''}</b></p><p>${esc(ai.read)}</p>${(ai.keys || []).length ? `<ul style="margin:0 0 8px;padding-left:18px">${ai.keys.map(k => `<li>${esc(k)}</li>`).join('')}</ul>` : ''}` : ''}
     <div class="inputs">
       <div><b>${sign(f.margin)}</b>${esc(g.home.abbr)} projected margin</div>
       <div><b>${sign(f.H.rating)}</b>${esc(g.home.abbr)} ${src}${f.H.gp ? ` · ${f.H.gp} GP` : ''}</div>
@@ -95,7 +95,7 @@ function fcRow(L, g, f, ai, opts = {}) {
   return `<div class="fcrow${isFav(g) ? ' fav' : ''}">
     <div class="fcrow-teams"><a href="${hrefG(g.lk, g.id)}">${tn(g.away)} at ${tn(g.home)}</a><small>${g.state === 'in' ? 'Live · ' + esc(g.detail) : g.state === 'post' ? esc(g.detail) + ` · ${g.away.score}–${g.home.score}` : esc(tip(g.date)) + ' CT' + (g.tv.label ? ' · ' + esc(g.tv.label) : '')}</small></div>
     <div class="fcrow-mid"><div class="fc-bar" role="img" aria-label="${esc(g.away.abbr)} ${pct(pa)}, ${esc(g.home.abbr)} ${pct(ph)}"><i style="width:${pa * 100}%;background:${g.away.color}"></i><i style="width:${ph * 100}%;background:${g.home.color}"></i></div><div class="fc-pct"><span>${esc(g.away.abbr)} ${pct(pa)}</span><span>${esc(g.home.abbr)} ${pct(ph)}</span></div></div>
-    <div><button class="btn sm ghost" data-act="fc" data-id="${g.id}"${ai ? ' data-ai="1"' : ''} aria-expanded="${open}" aria-controls="fcd-${g.id}">${open ? 'Hide' : ai ? 'AI read' : 'Why'}</button></div>
+    <div><button class="btn sm ghost" data-act="fc" data-id="${g.id}"${ai ? ' data-ai="1"' : ''} aria-expanded="${open}" aria-controls="fcd-${g.id}">${open ? 'Hide' : ai ? 'Prediction' : 'Why'}</button></div>
     ${detail}
   </div>`;
 }
@@ -107,19 +107,66 @@ function injItem(x, teamLabel, L) {
 }
 const tuneLine = P => { if (!P || !P.tunedAt) return ''; if (P.note && !(P.history && P.history.length)) return `Self-tuning starts at ${P.tuneAt} games · ${P.n} so far`; const h = P.history && P.history.length > 1 ? P.history[P.history.length - 2] : null; const changed = h && (h.hca !== P.hca || h.b2b !== P.b2b || h.sd !== P.sd); return `Ratings tuned ${esc(ago(P.tunedAt))}${changed ? ` · ${h.hca !== P.hca ? `home court ${h.hca} → ${P.hca}` : h.b2b !== P.b2b ? `rest ${h.b2b} → ${P.b2b}` : `spread ${h.sd} → ${P.sd}`}` : ' · no change'}`; };
 
+
+/* ---------- my teams ---------- */
+const favIds = lk => (favs.all()[lk] || []).map(String);
+function myTeamCard(L, id, cur, R, sched, inj, ctx) {
+  const lk = L.key; const r = cur && cur.byId[id]; const t0 = sched && sched.team;
+  const name = (r && (r.short || r.name)) || (t0 && (t0.shortDisplayName || t0.displayName)) || 'Team';
+  const logo = (r && r.logo) || (t0 && (t0.logo || (t0.logos && t0.logos[0] && t0.logos[0].href))) || '';
+  const rank = R && (R.ranks.find(x => x.team.id === id) || {}).rank;
+  const today = S.today[lk].find(g => g.home.id === id || g.away.id === id);
+  const evs = (sched && sched.events || []).map(e => parseEvent(e, L));
+  const next = today || evs.find(g => g.state !== 'post');
+  const last = [...evs].reverse().find(g => g.state === 'post' && g.home.score != null);
+  const vs = g => { const home = g.home.id === id; const op = home ? g.away : g.home; return `${g.neutral ? 'vs' : home ? 'vs' : 'at'} ${rk(op)}${esc(op.abbr)}`; };
+  let line1 = '', cls = '';
+  if (next) {
+    const home = next.home.id === id; const me = home ? next.home : next.away, op = home ? next.away : next.home;
+    if (next.state === 'in') { cls = 'live'; line1 = `<b>Live</b> ${esc(next.detail)} · ${esc(me.abbr)} ${me.score}, ${esc(op.abbr)} ${op.score}`; }
+    else if (next.state === 'post') { const won = me.score > op.score; line1 = `<b class="${won ? 'w' : 'lo'}">${won ? 'W' : 'L'}</b> ${me.score}–${op.score} ${vs(next)} · Final`; }
+    else { let fc = ''; try { const f = forecast(L, next, ctx); fc = ` · <b>${pct(home ? f.pHome : 1 - f.pHome)}</b>`; } catch { } line1 = `${esc(relDay(ymdOf(next.date)))} ${esc(tip(next.date))} ${vs(next)}${fc}`; }
+  } else line1 = 'No game scheduled';
+  let line2 = '';
+  if (last && last !== next) { const home = last.home.id === id; const me = home ? last.home : last.away, op = home ? last.away : last.home; const won = me.score > op.score; line2 = `Last: <b class="${won ? 'w' : 'lo'}">${won ? 'W' : 'L'}</b> ${me.score}–${op.score} ${vs(last)}`; }
+  const outs = inj && inj.byTeam[id] ? inj.byTeam[id].list.filter(x => /out/i.test(x.status || '')).length : 0;
+  const stand = r ? (L.standingsMode === 'conferences' ? `${r.w}–${r.l}${r.conf ? ' · ' + esc(r.conf) + ' ' + esc(r.groupAbbr || '') : ''}` : `${r.w}–${r.l} · ${ordinal(r.pos)} ${esc(r.groupAbbr || r.group)}`) : (t0 && t0.recordSummary) || '';
+  const href = next && next.state !== 'post' ? hrefG(lk, next.id) : hrefT(lk, id);
+  return `<a class="my-card ${cls}" href="${href}"><img src="${esc(logo)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"><div class="my-b"><div class="my-n">${rank ? `<span class="rk">${rank}</span>` : ''}${esc(name)} <small>${stand}</small></div><div class="my-l">${line1}</div><div class="my-l muted">${line2}${outs ? `${line2 ? ' · ' : ''}<span class="neg">${outs} out</span>` : ''}</div></div></a>`;
+}
+async function pickerOpen(lk) {
+  const L = LEAGUES[lk];
+  let dlg = document.getElementById('pick');
+  if (!dlg) { dlg = document.createElement('dialog'); dlg.id = 'pick'; dlg.className = 'pick'; document.body.appendChild(dlg); dlg.addEventListener('close', () => { if (location.hash.replace(/^#/, '') === lk || location.hash === '' ) HW.route(); }); }
+  dlg.innerHTML = `<div class="pick-h"><b>My teams</b><span class="x">${esc(L.label)} · tap the teams you follow</span><button class="btn sm" data-act="pickdone">Done</button></div><div class="pick-b"><p class="muted" style="margin:0 0 8px">Loading teams…</p></div>`;
+  if (!dlg.open) dlg.showModal();
+  let cur; try { cur = await standings(L); } catch { dlg.querySelector('.pick-b').innerHTML = failMsg('teams'); return; }
+  const R = await rankings(L); const rankOf = {}; (R && R.ranks || []).forEach(r => rankOf[r.team.id] = r.rank);
+  const chip = r => `<button class="pick-t${favs.has(lk, r.id) ? ' on' : ''}" data-act="pickt" data-lk="${lk}" data-id="${esc(r.id)}" data-q="${esc((r.name + ' ' + (r.abbr || '') + ' ' + (r.loc || '')).toLowerCase())}" aria-pressed="${favs.has(lk, r.id)}"><img src="${esc(r.logo)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"><span>${rankOf[r.id] ? `<span class="rk">${rankOf[r.id]}</span>` : ''}${esc(r.short || r.name)}</span></button>`;
+  const college = L.standingsMode === 'conferences';
+  const groups = college ? [...cur.groups].sort((a, b) => a.name.localeCompare(b.name)) : cur.groups;
+  dlg.querySelector('.pick-b').innerHTML = (college ? `<input class="inp" id="pickq" type="search" placeholder="Find a school or conference" aria-label="Find a team" style="margin-bottom:10px;width:100%">` : '') + groups.map(gp => `<div class="pick-g" data-name="${esc(gp.name.toLowerCase())}"><h4 class="conf-h">${esc(gp.name)}</h4><div class="pick-grid">${gp.rows.map(chip).join('')}</div></div>`).join('') + `<p class="note">Saved on this device only. Your teams lead each league's screen, go first in the scoreboard and are highlighted in standings.</p>`;
+  const q = document.getElementById('pickq');
+  if (q) q.addEventListener('input', () => { const v = q.value.trim().toLowerCase(); dlg.querySelectorAll('.pick-g').forEach(gq => { let any = false; gq.querySelectorAll('.pick-t').forEach(c => { const hit = !v || (c.dataset.q || c.textContent.toLowerCase()).includes(v) || gq.dataset.name.includes(v); c.hidden = !hit; any = any || hit; }); gq.hidden = !any; }); });
+}
+
 /* ================= CENTER ================= */
 async function center(lk) {
   const L = LEAGUES[lk]; remember(lk);
   const ymd = todayCT();
   $main.innerHTML = `<div class="rail">${Array.from({ length: 5 }, () => `<div class="bug" style="height:96px"></div>`).join('')}</div><div class="grid">${['c4', 'c5', 'c3', 'c3', 'c3', 'c3', 'c6'].map(c => `<div class="${c}">${skeleton(5)}</div>`).join('')}</div>`;
-  const [ctx, ai, cur, R, P, news, lp, inj, recs, aiRec] = await Promise.all([forecastCtx(L, ymd), aiFor(ymd), standings(L).catch(() => null), rankings(L), params(L), jSoft(`${API(L)}/news?limit=8`, 600000), leaguePlayers(L).catch(() => null), injuries(L), record(L), aiRecord()]);
+  const mine = favIds(lk).slice(0, 8);
+  const [ctx, ai, cur, R, P, news, lp, inj, recs, aiRec, scheds] = await Promise.all([forecastCtx(L, ymd), aiFor(ymd), standings(L).catch(() => null), rankings(L), params(L), jSoft(`${API(L)}/news?limit=8`, 600000), leaguePlayers(L).catch(() => null), injuries(L), record(L), aiRecord(), Promise.all(mine.map(id => jSoft(`${API(L)}/teams/${id}/schedule`, 300000)))]);
   const render = () => {
     const games = sortGames(S.today[lk]);
     const live = games.filter(isLive).length;
     const fcs = new Map(games.map(g => [g.id, forecast(L, g, ctx)]));
     const parts = [];
+    // my teams
+    if (mine.length) parts.push(`<section class="my" id="m-my"><div class="my-h"><span>My teams</span><button class="lnk" data-act="pick" data-lk="${lk}">Edit</button></div><div class="my-grid">${mine.map((id, i) => myTeamCard(L, id, cur, R, scheds[i], inj, ctx)).join('')}</div></section>`);
+    else if (!store.get('nofavs:' + lk, false)) parts.push(`<section class="cta" id="m-my"><div><b>Make it yours.</b> Pick the ${esc(L.label)} teams you follow and they lead this screen: next game, live score, forecast, who's out.</div><div class="cta-b"><button class="btn" data-act="pick" data-lk="${lk}">Pick my teams</button><button class="btn ghost" data-act="nofavs" data-lk="${lk}">Not now</button></div></section>`);
     // scoreboard rail
-    parts.push(`<div class="head" id="m-scores"><h1>${esc(relDay(ymd) === 'Tonight' ? 'Today' : relDay(ymd))}</h1><span class="d">${esc(dayLabel(ymd, { weekday: 'short', month: 'short', day: 'numeric' }))} · ${games.length} ${esc(L.label)} game${games.length === 1 ? '' : 's'}${live ? ` · <span style="color:var(--live)">${live} live</span>` : ''} · <a href="${hrefS('scores', lk)}">All scores →</a></span></div>`);
+    parts.push(`<div class="head" id="m-scores"><h1>${esc(relDay(ymd) === 'Tonight' ? 'Today' : relDay(ymd))}</h1><span class="d">${esc(dayLabel(ymd, { weekday: 'short', month: 'short', day: 'numeric' }))} · ${games.length} ${esc(L.label)} game${games.length === 1 ? '' : 's'}${live ? ` · <span style="color:var(--live)">${live} live</span>` : ''} · <a href="${hrefS('scores', lk)}">All scores →</a>${!mine.length && store.get('nofavs:' + lk, false) ? ` · <a href="#" data-act="pick" data-lk="${lk}">Pick my teams</a>` : ''}</span></div>`);
     parts.push(games.length ? `<div class="rail">${games.map(g => bug(g, fcs.get(g.id))).join('')}</div>` : `<div style="margin-bottom:12px">${state(`No ${L.noun} games today`, `<p>${lk === 'wnba' ? 'The WNBA is in its off-season; the schedule returns in May.' : `Upcoming games and forecasts are on the <a href="${hrefS('forecasts', lk)}">Forecasts</a> page.`}</p>`)}</div>`);
     // jump bar (phone)
     parts.push(`<nav class="jump" aria-label="Jump to"><a href="#m-call">Call</a><a href="#m-standings">${L.hasRankings ? 'Rankings' : 'Standings'}</a><a href="#m-leaders">Leaders</a><a href="#m-injuries">${L.hasInjuries ? 'Injuries' : 'Movers'}</a><a href="#m-ratings">Ratings</a><a href="#m-model">Model</a><a href="#m-news">News</a></nav>`);
@@ -134,7 +181,7 @@ async function center(lk) {
       callBody = `<div class="feat"><div class="t"><a href="${hrefT(lk, g.away.id)}"><div class="ab" style="color:${g.away.color}">${esc(g.away.abbr)}</div></a><small>${tn(g.away)} · ${esc(g.away.rec)}</small><div class="pct${1 - f.pHome >= .5 ? ' lead' : ''}">${g.state === 'in' ? g.away.score : pct(1 - f.pHome)}</div></div><div class="mid">${g.state === 'in' ? `<span class="big">${esc(g.detail)}</span>` : `${esc(tip(g.date))}<br>${esc(g.tv.label || '')}`}<br>${esc(g.venue || '')}</div><div class="t"><a href="${hrefT(lk, g.home.id)}"><div class="ab" style="color:${g.home.color}">${esc(g.home.abbr)}</div></a><small>${tn(g.home)} · ${esc(g.home.rec)}</small><div class="pct${f.pHome > .5 ? ' lead' : ''}">${g.state === 'in' ? g.home.score : pct(f.pHome)}</div></div></div><p class="aiq">${txt} <a href="${hrefG(lk, g.id)}" style="color:var(--link);text-decoration:none;font-weight:700">${a ? 'Full read →' : 'Preview →'}</a></p>` +
         (cands.length > 1 ? `<div class="fcl" style="margin-top:8px">${cands.slice(1, 6).map(x => miniRow(x.g, x.f)).join('')}</div>` : '') + (upcoming.length > 6 ? `<p class="note"><a href="${hrefS('forecasts', lk)}" style="color:var(--link);text-decoration:none">All ${upcoming.length} forecasts →</a></p>` : '');
     } else callBody = `<p class="muted" style="margin:0">Nothing left on today's slate.</p><div class="fcl" style="margin-top:6px">${games.slice(0, 6).map(g => miniRow(g, fcs.get(g.id))).join('')}</div>`;
-    grid.push(mod("Tonight's call", callBody, { cls: 'c4', id: 'm-call', x: (ai && ai.games && games.some(g => aiEntry(ai, g))) ? 'AI read · ' + (ai && ai.generated ? new Date(ai.generated).toLocaleTimeString('en-US', { timeZone: HW.TZ, hour: 'numeric', minute: '2-digit' }) : 'today') : 'model', href: hrefS('forecasts', lk) }));
+    grid.push(mod("Tonight's call", callBody, { cls: 'c4', id: 'm-call', x: (ai && ai.games && games.some(g => aiEntry(ai, g))) ? 'Prediction · ' + (ai && ai.generated ? new Date(ai.generated).toLocaleTimeString('en-US', { timeZone: HW.TZ, hour: 'numeric', minute: '2-digit' }) : 'today') : 'model', href: hrefS('forecasts', lk) }));
     // standings / rankings
     if (L.hasRankings) {
       const eloTop = ctx.ratings && ctx.ratings.teams ? Object.entries(ctx.ratings.teams).map(([id, v]) => ({ id, ...v })).sort((a, b) => b.elo - a.elo).slice(0, 10) : [];
@@ -175,7 +222,7 @@ async function center(lk) {
     else modelBody += '<p class="muted" style="margin:0 0 6px">No forecasts scored yet this season.</p>';
     if (P && P.tunedAt) modelBody += `<div class="mv"><span>Last tune</span><b>${esc(tuneLine(P).replace(/^Ratings tuned /, ''))}</b></div><div class="mv"><span>Home court · rest · spread</span><b>${P.hca} · ${P.b2b} · ${P.sd}</b></div>`;
     if (P && P.calib) modelBody += `<div class="mv"><span>Calibration</span><b>${P.calib.a > 1.05 ? 'was underconfident' : P.calib.a < .95 ? 'was overconfident' : 'on target'}</b></div>`;
-    if (aiRec && aiRec.byLeague && aiRec.byLeague[lk]) { const r = aiRec.byLeague[lk]; modelBody += `<div class="mv"><span>AI reads</span><b>${r.hit} of ${r.n}${r.last7 ? ` · ${r.last7.hit} of ${r.last7.n} last 7d` : ''}</b></div>`; }
+    if (aiRec && aiRec.byLeague && aiRec.byLeague[lk]) { const r = aiRec.byLeague[lk]; modelBody += `<div class="mv"><span>Predictions</span><b>${r.hit} of ${r.n}${r.last7 ? ` · ${r.last7.hit} of ${r.last7.n} last 7d` : ''}</b></div>`; }
     grid.push(mod('Model', modelBody, { cls: 'c3', id: 'm-model', x: 'learns nightly', href: '#record' }));
     // news
     if (news && news.articles && news.articles.length) grid.push(mod('News', `<div class="news">${news.articles.slice(0, 5).map(a => { const img = a.images && a.images[0] && a.images[0].url; return `<a href="${esc(a.links && a.links.web && a.links.web.href || '#')}" target="_blank" rel="noopener">${img ? `<img class="im" src="${esc(img)}" alt="" loading="lazy">` : '<span class="im"></span>'}<div><h5>${esc(a.headline)}</h5><small>${esc(ago(a.published))}${a.byline ? ' · ' + esc(a.byline) : ''}</small></div></a>`; }).join('')}</div>`, { cls: 'c3', id: 'm-news', x: 'latest', href: hrefS('news', lk) }));
@@ -232,7 +279,7 @@ async function forecasts(lk) {
   $main.innerHTML = head('Forecasts', `${esc(L.label)} · the next seven days`) + skeleton(10);
   const t = todayCT(); const days = Array.from({ length: 7 }, (_, i) => addDays(t, i));
   const [ais, boards, base, yday, rt, P] = await Promise.all([Promise.all(days.map(aiFor)), Promise.all(days.map(d => scoreboard(L, d).catch(() => []))), forecastCtx(L, t), scoreboard(L, addDays(t, -1)).catch(() => []), HW.ratings(L), params(L)]);
-  const sections = days.map((d, i) => { const gs = sortGames(boards[i].filter(g => g.state !== 'post')); if (!gs.length) return ''; const played = new Set((i === 0 ? yday : boards[i - 1]).filter(g => g.state !== 'pre').flatMap(g => [g.home.id, g.away.id])); const ctx = { ...base, b2b: played }; const cap = COLLEGE.includes(lk) ? 40 : 30; return mod(relDay(d), `<div class="fcl">${gs.slice(0, cap).map(g => fcRow(L, g, forecast(L, g, ctx), aiEntry(ais[i], g))).join('')}</div>${gs.length > cap ? `<p class="note"><a href="${hrefS('scores', lk, compact(d))}">All ${gs.length} games that day →</a></p>` : ''}`, { x: `${dayLabel(d, { weekday: 'short', month: 'short', day: 'numeric' })} · ${gs.length} games${ais[i] ? ' · AI reads in' : ''}` }); }).join('');
+  const sections = days.map((d, i) => { const gs = sortGames(boards[i].filter(g => g.state !== 'post')); if (!gs.length) return ''; const played = new Set((i === 0 ? yday : boards[i - 1]).filter(g => g.state !== 'pre').flatMap(g => [g.home.id, g.away.id])); const ctx = { ...base, b2b: played }; const cap = COLLEGE.includes(lk) ? 40 : 30; return mod(relDay(d), `<div class="fcl">${gs.slice(0, cap).map(g => fcRow(L, g, forecast(L, g, ctx), aiEntry(ais[i], g))).join('')}</div>${gs.length > cap ? `<p class="note"><a href="${hrefS('scores', lk, compact(d))}">All ${gs.length} games that day →</a></p>` : ''}`, { x: `${dayLabel(d, { weekday: 'short', month: 'short', day: 'numeric' })} · ${gs.length} games${ais[i] ? ' · predictions in' : ''}` }); }).join('');
   const side = [];
   if (rt && rt.teams) { const topT = Object.entries(rt.teams).map(([id, v]) => ({ id, ...v })).sort((a, b) => b.elo - a.elo).slice(0, 15); side.push(mod('Power ratings', `<table class="t"><thead><tr><th>Team</th><th>Elo</th><th>vs avg</th><th>7d</th></tr></thead><tbody>${topT.map((r, i) => `<tr class="click${favs.has(lk, r.id) ? ' fav' : ''}" data-href="${hrefT(lk, r.id)}"><td><span class="team"><span class="n">${i + 1}</span><a href="${hrefT(lk, r.id)}">${esc(r.short || r.name || r.abbr)}</a></span></td><td>${Math.round(r.elo)}</td><td>${sign((r.elo - 1500) / L.eloPerPoint)}</td><td class="${r.d7 > 0 ? 'pos' : r.d7 < 0 ? 'neg' : ''}">${r.d7 != null ? (r.d7 > 0 ? '+' : '') + Math.round(r.d7) : ''}</td></tr>`).join('')}</tbody></table><p class="note">"vs avg" is the projected margin against an average team on a neutral floor.</p>`, { x: 'Elo · updated ' + ago(rt.generated) })); }
   const hca = P && P.hca != null ? P.hca : L.hca, b2b = P && P.b2b != null ? P.b2b : L.b2b, sd = P && P.sd != null ? P.sd : L.sd;
@@ -357,7 +404,7 @@ async function teams(lk) {
   const q = L.standingsMode === 'conferences' ? `<div class="ctrls"><input class="inp" id="teamq" type="search" placeholder="Find a school or conference" aria-label="Find a team"></div>` : '';
   $main.innerHTML = head('Teams', `${cur.groups.reduce((n, c) => n + c.rows.length, 0)} ${esc(L.label)} teams · star a team on its page to pin it here and highlight its games`) + q + (mine.length ? `<h2 class="conf-h" style="margin-top:4px">My teams</h2><div class="teams">${mine.map(card).join('')}</div>` : '') + cur.groups.map(gp => `<div class="tgroup" data-name="${esc(gp.name.toLowerCase())}"><h2 class="conf-h">${esc(gp.name)}</h2><div class="teams">${gp.rows.map(card).join('')}</div></div>`).join('');
   const inp = document.getElementById('teamq');
-  if (inp) inp.addEventListener('input', () => { const v = inp.value.trim().toLowerCase(); document.querySelectorAll('.tgroup').forEach(gq => { let any = false; gq.querySelectorAll('.team-card').forEach(c => { const hit = !v || c.textContent.toLowerCase().includes(v) || gq.dataset.name.includes(v); c.hidden = !hit; any = any || hit; }); gq.hidden = !any; }); });
+  if (inp) inp.addEventListener('input', () => { const v = inp.value.trim().toLowerCase(); document.querySelectorAll('.tgroup').forEach(gq => { let any = false; gq.querySelectorAll('.team-card').forEach(c => { const hit = !v || (c.dataset.q || c.textContent.toLowerCase()).includes(v) || gq.dataset.name.includes(v); c.hidden = !hit; any = any || hit; }); gq.hidden = !any; }); });
 }
 
 /* ================= PLAYERS ================= */
@@ -492,13 +539,13 @@ async function recordView() {
   if (aiRec && aiRec.n) {
     const byL = ORDER.filter(k => aiRec.byLeague && aiRec.byLeague[k] && aiRec.byLeague[k].n).map(k => { const r = aiRec.byLeague[k]; return `<div class="mv"><span>${esc(LEAGUES[k].label)}</span><b>${r.hit} of ${r.n} · ${Math.round(r.hit / r.n * 100)}%</b></div>`; }).join('');
     const byC = ['high', 'medium', 'low'].filter(c => aiRec.byConfidence && aiRec.byConfidence[c] && aiRec.byConfidence[c].n).map(c => { const r = aiRec.byConfidence[c]; return `<div class="mv"><span>${c} confidence</span><b>${r.hit} of ${r.n} · ${Math.round(r.hit / r.n * 100)}%</b></div>`; }).join('');
-    const agree = aiRec.vsModel ? `<div class="mv"><span>When the AI disagreed with the model</span><b>AI ${aiRec.vsModel.aiHit} · model ${aiRec.vsModel.modelHit} of ${aiRec.vsModel.n}</b></div>` : '';
+    const agree = aiRec.vsModel ? `<div class="mv"><span>When the prediction went against the model</span><b>prediction ${aiRec.vsModel.aiHit} · model ${aiRec.vsModel.modelHit} of ${aiRec.vsModel.n}</b></div>` : '';
     const recent = (aiRec.recent || []).slice(0, 10).map(x => `<div class="wire-item"><span class="t">${esc(dayLabel(x.date, { month: 'short', day: 'numeric' }))}</span><span><a href="${hrefG(x.lk, x.id)}"><b>${esc(x.game)}</b></a> · leaned ${esc(x.pick)}${x.confidence ? ' (' + esc(x.confidence) + ')' : ''} · <span class="${x.hit ? 'w' : 'lo'}">${x.hit ? 'Hit' : 'Miss'}</span>${x.final ? ' · ' + esc(x.final) : ''}</span></div>`).join('');
-    aiM = mod('AI reads', `<div class="rec"><div><b>${Math.round(aiRec.hit / aiRec.n * 100)}%</b><small>Leans right</small></div><div><b>${aiRec.n}</b><small>Graded</small></div>${aiRec.last7 && aiRec.last7.n ? `<div><b>${aiRec.last7.hit}–${aiRec.last7.n - aiRec.last7.hit}</b><small>Last 7 days</small></div>` : ''}</div>${byL}${byC}${agree}<p class="note" style="margin:8px 0 10px">Each morning's reads are graded the next morning and the running record, with yesterday's misses, is fed back into the next day's context. Only games with a stated lean are graded.</p>${recent}`, { x: 'graded every morning', cls: '' });
-  } else aiM = mod('AI reads', '<p class="muted" style="margin:0">The first graded reads show up the morning after the first day of reads.</p>', { x: 'graded every morning' });
+    aiM = mod('Predictions', `<div class="rec"><div><b>${Math.round(aiRec.hit / aiRec.n * 100)}%</b><small>Leans right</small></div><div><b>${aiRec.n}</b><small>Graded</small></div>${aiRec.last7 && aiRec.last7.n ? `<div><b>${aiRec.last7.hit}–${aiRec.last7.n - aiRec.last7.hit}</b><small>Last 7 days</small></div>` : ''}</div>${byL}${byC}${agree}<p class="note" style="margin:8px 0 10px">Each morning's predictions are graded the next morning, and the running record, with yesterday's misses, goes back into the next day's write-up so it can correct itself. Only games with a stated lean are graded.</p>${recent}`, { x: 'graded every morning', cls: '' });
+  } else aiM = mod('Predictions', '<p class="muted" style="margin:0">The first graded predictions show up the morning after the first day of predictions.</p>', { x: 'graded every morning' });
   $main.innerHTML = head('The record', 'Every pregame forecast the model made, scored against what happened. Updated nightly.') + (secs.length ? `<div class="page"><div class="col">${secs.join('')}</div><div class="col">${overall}${aiM}${mod('What counts', `<p style="margin:0 0 8px;font-size:13.5px">Each night the ratings job records the win chance the model gave every game <i>before</i> tip-off, using only the ratings as they stood that morning. Nothing is re-scored after the fact.</p><p style="margin:0 0 8px;font-size:13.5px">"Straight-up" is how often the favored team won. Brier rewards being confident when right and punishes being confident when wrong, so it's the fairer test.</p><p class="note">ESPN's pregame win probability is pulled from the same game page when available. Where ESPN shows a betting line, it's listed for reference only.</p>`)}</div></div>` : state('No record yet', '<p>The nightly job hasn\'t scored a game yet. Check back after the first slate of results.</p>'));
 }
 
 HW.views = { center, scores, game, standings: standingsView, rankings: rankingsView, teams, team, players, player, forecasts, injuries: injuriesView, news, record: recordView };
-HW.render = { failMsg, state, lkOf, remember, COLLEGE, tuneLine };
+HW.render = { failMsg, state, lkOf, remember, COLLEGE, tuneLine, pickerOpen };
 })();

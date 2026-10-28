@@ -3,6 +3,7 @@
 'use strict';
 const HW = window.HW;
 const { LEAGUES, ORDER, todayCT, timeCT, scoreboard, isLive, S, allToday, cache, favs, store, params } = HW;
+HW.route = () => route();
 const $main = document.getElementById('main');
 const $fresh = document.getElementById('fresh'), $freshText = document.getElementById('freshText');
 const $ltabs = document.getElementById('ltabs'), $subnav = document.getElementById('subnav');
@@ -112,13 +113,19 @@ document.addEventListener('click', e => {
   const act = e.target.closest('[data-act]');
   if (act) {
     const a = act.dataset.act;
-    if (a === 'ai') { const k = 'ai-' + act.dataset.id; S.open.has(k) ? S.open.delete(k) : S.open.add(k); const on = S.open.has(k); const box = document.getElementById(k); if (box) box.hidden = !on; act.textContent = on ? 'Hide AI read' : 'AI read'; act.setAttribute('aria-expanded', on); return; }
-    if (a === 'fc') { const k = 'fc-' + act.dataset.id; S.open.has(k) ? S.open.delete(k) : S.open.add(k); const on = S.open.has(k); document.querySelectorAll('#fcd-' + CSS.escape(act.dataset.id)).forEach(el => el.hidden = !on); act.setAttribute('aria-expanded', on); act.textContent = on ? 'Hide' : (act.dataset.ai ? 'AI read' : 'Why'); return; }
+    if (a === 'ai') { const k = 'ai-' + act.dataset.id; S.open.has(k) ? S.open.delete(k) : S.open.add(k); const on = S.open.has(k); const box = document.getElementById(k); if (box) box.hidden = !on; act.textContent = on ? 'Hide prediction' : 'Prediction'; act.setAttribute('aria-expanded', on); return; }
+    if (a === 'fc') { const k = 'fc-' + act.dataset.id; S.open.has(k) ? S.open.delete(k) : S.open.add(k); const on = S.open.has(k); document.querySelectorAll('#fcd-' + CSS.escape(act.dataset.id)).forEach(el => el.hidden = !on); act.setAttribute('aria-expanded', on); act.textContent = on ? 'Hide' : (act.dataset.ai ? 'Prediction' : 'Why'); return; }
     if (a === 'stmode') { HW.views.standings.render(act.dataset.m); return; }
     if (a === 'psort') { HW.views.players.st.sort = act.dataset.k; HW.views.players.paint ? HW.views.players.paint() : route(); return; }
     if (a === 'pmore') { HW.views.players.st.limit += 100; HW.views.players.paint(); return; }
     if (a === 'fav') { const on = favs.toggle(act.dataset.lk, act.dataset.id); act.textContent = on ? '★ In my teams' : '☆ Add to my teams'; act.setAttribute('aria-pressed', on); return; }
     if (a === 'reload') { e.preventDefault(); cache.clear(); tick().then(route); return; }
+    if (a === 'pick') { e.preventDefault(); HW.render.pickerOpen(act.dataset.lk); return; }
+    if (a === 'pickt') { const on = favs.toggle(act.dataset.lk, act.dataset.id); act.classList.toggle('on', on); act.setAttribute('aria-pressed', on); return; }
+    if (a === 'pickdone') { const d = document.getElementById('pick'); if (d) d.close(); return; }
+    if (a === 'nofavs') { store.set('nofavs:' + act.dataset.lk, true); const el = document.getElementById('m-my'); if (el) el.remove(); return; }
+    if (a === 'install') { e.preventDefault(); if (S.installEvt) { S.installEvt.prompt(); S.installEvt.userChoice.then(() => { S.installEvt = null; paintInstall(); }); } return; }
+    if (a === 'install-later') { e.preventDefault(); store.set('installSnooze', Date.now()); paintInstall(); return; }
   }
   const jl = e.target.closest('.jump a[href^="#m-"]');
   if (jl) { e.preventDefault(); const el = document.getElementById(jl.getAttribute('href').slice(1)); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
@@ -126,6 +133,24 @@ document.addEventListener('click', e => {
   if (tr && !e.target.closest('a,button,input,select')) { location.hash = tr.dataset.href.slice(1); }
 });
 document.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('th[data-act="psort"]')) { e.preventDefault(); e.target.click(); } });
+
+/* ---------- install (home-screen app) ---------- */
+const standalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) && !window.MSStream;
+function paintInstall() {
+  const old = document.getElementById('install'); if (old) old.remove();
+  if (standalone()) return;
+  const snoozed = Date.now() - (store.get('installSnooze', 0) || 0) < 14 * 86400000; if (snoozed) return;
+  const canPrompt = !!S.installEvt, ios = isIOS() && /Safari/.test(navigator.userAgent) && !/CriOS|FxiOS/.test(navigator.userAgent);
+  if (!canPrompt && !ios) return;
+  const el = document.createElement('div'); el.id = 'install'; el.className = 'install';
+  el.innerHTML = `<img src="img/mark.svg" alt="" width="34" height="34"><div><b>Put Hardwood on your home screen.</b> ${ios ? 'Tap <span class="kbd">Share</span> then <span class="kbd">Add to Home Screen</span>. It opens full screen like an app.' : 'It opens full screen like an app, no browser bar.'}</div>${canPrompt ? '<button class="btn sm" data-act="install">Install</button>' : ''}<button class="btn sm ghost" data-act="install-later" aria-label="Not now">Not now</button>`;
+  document.body.appendChild(el);
+}
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); S.installEvt = e; paintInstall(); });
+window.addEventListener('appinstalled', () => { S.installEvt = null; paintInstall(); });
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => { });
+setTimeout(paintInstall, 2500);
 
 /* ---------- boot ---------- */
 S.todayYmd = todayCT();
