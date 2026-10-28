@@ -110,7 +110,7 @@ function injItem(x, teamLabel, L) {
   const ret = x.details && x.details.returnDate ? ` · ESPN est. return ${esc(dateShort(x.details.returnDate))}` : '';
   return `<div class="wire-item">${injPill(x.status)}<span><a href="${hrefP(L.key, esc(x.athlete && x.athlete.id || ''))}"><b>${esc(x.athlete && x.athlete.displayName)}</b></a> <span class="muted">· ${esc(teamLabel)}${x.details && x.details.type ? ' · ' + esc(x.details.type) : ''}${ret}</span><br><span class="muted">${esc((x.shortComment || '').slice(0, 160))}${(x.shortComment || '').length > 160 ? '…' : ''}</span></span></div>`;
 }
-const tuneLine = P => { if (!P || !P.tunedAt) return ''; if (P.note && !(P.history && P.history.length)) return `Self-tuning starts at ${P.tuneAt} games · ${P.n} so far`; const h = P.history && P.history.length > 1 ? P.history[P.history.length - 2] : null; const changed = h && (h.hca !== P.hca || h.b2b !== P.b2b || h.sd !== P.sd); return `Ratings tuned ${esc(ago(P.tunedAt))}${changed ? ` · ${h.hca !== P.hca ? `${homeWord(LEAGUES[P.league] || {})} ${h.hca} → ${P.hca}` : h.b2b !== P.b2b ? `rest ${h.b2b} → ${P.b2b}` : `spread ${h.sd} → ${P.sd}`}` : ' · no change'}`; };
+const tuneLine = (P, L) => { if (!P || !P.tunedAt) return ''; if (P.note && !(P.history && P.history.length)) return `Self-tuning starts at ${P.tuneAt} games · ${P.n} so far`; const h = P.history && P.history.length > 1 ? P.history[P.history.length - 2] : null; const changed = h && (h.hca !== P.hca || h.b2b !== P.b2b || h.sd !== P.sd); return `Ratings tuned ${esc(ago(P.tunedAt))}${changed ? ` · ${h.hca !== P.hca ? `${homeWord(L || LEAGUES.nba)} ${h.hca} → ${P.hca}` : h.b2b !== P.b2b ? `rest ${h.b2b} → ${P.b2b}` : `spread ${h.sd} → ${P.sd}`}` : ' · no change'}`; };
 
 
 /* ---------- my teams ---------- */
@@ -159,8 +159,8 @@ function updatesBody() {
 async function pickerOpen(lk, opts = {}) {
   lk = LEAGUES[lk] ? lk : 'nba';
   let dlg = document.getElementById('pick');
-  if (!dlg) { dlg = document.createElement('dialog'); dlg.id = 'pick'; dlg.className = 'pick'; document.body.appendChild(dlg); dlg.addEventListener('close', () => { store.set('onboarded', true); HW.route(); }); }
-  const welcome = !!opts.welcome;
+  if (!dlg) { dlg = document.createElement('dialog'); dlg.id = 'pick'; dlg.className = 'pick'; document.body.appendChild(dlg); dlg.addEventListener('close', () => { store.set('onboarded', true); const picked = Object.values(favs.all()).some(a => a.length); if (dlg.dataset.welcome === '1' && picked && location.hash !== '#my') location.hash = '#my'; else HW.route(); }); }
+  const welcome = !!opts.welcome; dlg.dataset.welcome = welcome ? '1' : '';
   // same two-level switch as the header: a sport row, then that sport's leagues
   const spKey = LEAGUES[lk].sport; const spDef = SPORTS.find(x => x.key === spKey) || SPORTS[0];
   const tabs = `<div class="pick-nav"><div class="pick-sports">${SPORTS.map(x => `<button class="${x.key === spKey ? 'on' : ''}" data-act="picklk" data-lk="${x.key === spKey ? lk : (x.leagues.includes(store.get('lk:' + x.key, '')) ? store.get('lk:' + x.key, '') : x.leagues[0])}" aria-pressed="${x.key === spKey}">${esc(x.label)}</button>`).join('')}</div><div class="pick-tabs">${spDef.leagues.map(k => `<button class="pick-lk${k === lk ? ' on' : ''}" data-act="picklk" data-lk="${k}" aria-pressed="${k === lk}">${esc(LEAGUES[k].label)}</button>`).join('')}</div></div>`;
@@ -250,7 +250,7 @@ async function center(lk) {
     let modelBody = '';
     if (recs && recs.games && recs.games.length) { const gs = recs.games, n = gs.length; const hit = gs.filter(g => (g.p >= .5) === (g.hs > g.as)).length; const br = gs.reduce((s, g) => s + ((g.hs > g.as ? 1 : 0) - g.p) ** 2, 0) / n; const eg = gs.filter(g => g.ep != null); const eh = eg.filter(g => (g.ep >= .5) === (g.hs > g.as)).length; modelBody += `<div class="rec"><div><b>${(hit / n * 100).toFixed(1)}%</b><small>Tipoff</small></div>${eg.length ? `<div><b>${(eh / eg.length * 100).toFixed(1)}%</b><small>ESPN</small></div>` : ''}<div><b>${br.toFixed(3)}</b><small>Brier</small></div></div>`; modelBody += `<div class="mv"><span>Games scored</span><b>${n}</b></div>`; }
     else modelBody += '<p class="muted" style="margin:0 0 6px">No forecasts scored yet this season.</p>';
-    if (P && P.tunedAt) modelBody += `<div class="mv"><span>Last tune</span><b>${esc(tuneLine(P).replace(/^Ratings tuned /, ''))}</b></div><div class="mv"><span>Home court · rest · spread</span><b>${P.hca} · ${P.b2b} · ${P.sd}</b></div>`;
+    if (P && P.tunedAt) modelBody += `<div class="mv"><span>Last tune</span><b>${esc(tuneLine(P, L).replace(/^Ratings tuned /, ''))}</b></div><div class="mv"><span>Home court · rest · spread</span><b>${P.hca} · ${P.b2b} · ${P.sd}</b></div>`;
     if (P && P.calib) modelBody += `<div class="mv"><span>Calibration</span><b>${P.calib.a > 1.05 ? 'was underconfident' : P.calib.a < .95 ? 'was overconfident' : 'on target'}</b></div>`;
     if (aiRec && aiRec.byLeague && aiRec.byLeague[lk]) { const r = aiRec.byLeague[lk]; modelBody += `<div class="mv"><span>Predictions</span><b>${r.hit} of ${r.n}${r.last7 ? ` · ${r.last7.hit} of ${r.last7.n} last 7d` : ''}</b></div>`; }
     grid.push(mod('Model', modelBody, { cls: 'c3', id: 'm-model', x: 'learns nightly', href: '#record' }));
@@ -258,7 +258,7 @@ async function center(lk) {
     if (news && news.articles && news.articles.length) grid.push(mod('News', `<div class="news">${news.articles.slice(0, 5).map(a => { const img = a.images && a.images[0] && a.images[0].url; return `<a href="${esc(a.links && a.links.web && a.links.web.href || '#')}" target="_blank" rel="noopener">${img ? `<img class="im" src="${esc(img)}" alt="" loading="lazy">` : '<span class="im"></span>'}<div><h5>${esc(a.headline)}</h5><small>${esc(ago(a.published))}${a.byline ? ' · ' + esc(a.byline) : ''}</small></div></a>`; }).join('')}</div>`, { cls: 'c3', id: 'm-news', x: 'latest', href: hrefS('news', lk) }));
     parts.push(`<div class="grid">${grid.join('')}</div>`);
     $main.innerHTML = parts.join('');
-    const sub = document.querySelector('#subnav .d'); if (sub && P) sub.textContent = tuneLine(P);
+    const sub = document.querySelector('#subnav .d'); if (sub && P) sub.textContent = tuneLine(P, L);
   };
   render();
   return { live: render };
@@ -313,7 +313,7 @@ async function forecasts(lk) {
   const side = [];
   if (rt && rt.teams) { const topT = Object.entries(rt.teams).map(([id, v]) => ({ id, ...v })).sort((a, b) => b.elo - a.elo).slice(0, 15); side.push(mod('Power ratings', `<table class="t"><thead><tr><th>Team</th><th>Elo</th><th>vs avg</th><th>7d</th></tr></thead><tbody>${topT.map((r, i) => `<tr class="click${favs.has(lk, r.id) ? ' fav' : ''}" data-href="${hrefT(lk, r.id)}"><td><span class="team"><span class="n">${i + 1}</span><a href="${hrefT(lk, r.id)}">${esc(r.short || r.name || r.abbr)}</a></span></td><td>${Math.round(r.elo)}</td><td>${sign((r.elo - 1500) / L.eloPerPoint)}</td><td class="${r.d7 > 0 ? 'pos' : r.d7 < 0 ? 'neg' : ''}">${r.d7 != null ? (r.d7 > 0 ? '+' : '') + Math.round(r.d7) : ''}</td></tr>`).join('')}</tbody></table><p class="note">"vs avg" is the projected margin against an average team on a neutral floor.</p>`, { x: 'Elo · updated ' + ago(rt.generated) })); }
   const hca = P && P.hca != null ? P.hca : L.hca, b2b = P && P.b2b != null ? P.b2b : L.b2b, sd = P && P.sd != null ? P.sd : L.sd;
-  side.push(mod('How it learns', `<p style="margin:0 0 8px;font-size:13px">Every team carries an Elo rating that moves after each game by how surprising the result was and how big the margin was. It's rebuilt nightly from every ${esc(L.noun)} result this season.</p><p style="margin:0 0 8px;font-size:13px">Projected margin = rating gap + <b>${hca}</b> for ${homeWord(L)}${L.b2b ? ` − <b>${b2b}</b> for a team that played yesterday` : ''}${L.sport === 'basketball' ? " − about 0.18 points per point-per-game of scoring that's ruled out" : L.hasInjuries ? ' − a small adjustment for listed-out starters' : ''}. The margin becomes a win chance using a <b>${sd}</b>-${unit(L).replace(/s$/, '')} spread, then a calibration layer corrects any over- or under-confidence the record shows.</p><p style="margin:0;font-size:13px">Every night the job re-tests ${homeWord(L)}, rest and spread against the whole season and keeps whatever scores best. ${P && P.tunedAt ? `Last tune: ${esc(tuneLine(P).replace(/^Ratings tuned /, ''))}.` : 'First tune runs after tonight\'s games.'}</p><p class="note">Tap <b>Why</b> on any game for its inputs. <a href="#record" style="color:var(--link)">See the record →</a></p>`, { x: 'self-tuning', href: '#record' }));
+  side.push(mod('How it learns', `<p style="margin:0 0 8px;font-size:13px">Every team carries an Elo rating that moves after each game by how surprising the result was and how big the margin was. It's rebuilt nightly from every ${esc(L.noun)} result this season.</p><p style="margin:0 0 8px;font-size:13px">Projected margin = rating gap + <b>${hca}</b> for ${homeWord(L)}${L.b2b ? ` − <b>${b2b}</b> for a team that played yesterday` : ''}${L.sport === 'basketball' ? " − about 0.18 points per point-per-game of scoring that's ruled out" : L.hasInjuries ? ' − a small adjustment for listed-out starters' : ''}. The margin becomes a win chance using a <b>${sd}</b>-${unit(L).replace(/s$/, '')} spread, then a calibration layer corrects any over- or under-confidence the record shows.</p><p style="margin:0;font-size:13px">Every night the job re-tests ${homeWord(L)}, rest and spread against the whole season and keeps whatever scores best. ${P && P.tunedAt ? `Last tune: ${esc(tuneLine(P, L).replace(/^Ratings tuned /, ''))}.` : 'First tune runs after tonight\'s games.'}</p><p class="note">Tap <b>Why</b> on any game for its inputs. <a href="#record" style="color:var(--link)">See the record →</a></p>`, { x: 'self-tuning', href: '#record' }));
   $main.innerHTML = head('Forecasts', `${esc(L.label)} · the next seven days · win chances from the Tipoff rating model`) + `<div class="page"><div class="col">${sections || state('Nothing scheduled', `<p>No ${esc(L.noun)} games in the next seven days.</p>`)}</div><div class="col">${side.join('')}</div></div>`;
 }
 
@@ -636,6 +636,64 @@ async function recordView() {
   $main.innerHTML = head('The record', 'Every pregame forecast the model made, scored against what happened. Updated nightly.') + (secs.length ? `<div class="page"><div class="col">${secs.join('')}</div><div class="col">${overall}${aiM}${mod('What counts', `<p style="margin:0 0 8px;font-size:13.5px">Each night the ratings job records the win chance the model gave every game <i>before</i> tip-off, using only the ratings as they stood that morning. Nothing is re-scored after the fact.</p><p style="margin:0 0 8px;font-size:13.5px">"Straight-up" is how often the favored team won. Brier rewards being confident when right and punishes being confident when wrong, so it's the fairer test.</p><p class="note">ESPN's pregame win probability is pulled from the same game page when available. Where ESPN shows a betting line, it's listed for reference only.</p>`)}</div></div>` : state('No record yet', '<p>The nightly job hasn\'t scored a game yet. Check back after the first slate of results.</p>'));
 }
 
-HW.views = { center, scores, game, standings: standingsView, rankings: rankingsView, teams, team, players, player, forecasts, injuries: injuriesView, news, record: recordView };
+/* ================= MY TEAMS (all sports) ================= */
+async function my() {
+  const F = favs.all(); const teams = ORDER.flatMap(lk => (F[lk] || []).map(id => ({ lk, id: String(id) })));
+  const edit = `<button class="btn sm ghost" data-act="pick" data-lk="${S.league || 'nba'}">Edit my teams</button>`;
+  if (!teams.length) {
+    $main.innerHTML = head('My teams', 'one screen for every team you follow, across every sport') + `<section class="cta" id="m-my"><div><b>Nothing here yet.</b> Pick the teams you follow in any sport and this screen becomes theirs: live scores, what's next, results, who's out and the day's predictions.</div><div class="cta-b"><button class="btn" data-act="pick" data-lk="${S.league || 'nba'}">Pick my teams</button></div></section>` +
+      `<div class="grid">${mod('How it works', `<p style="margin:0 0 8px;font-size:13.5px">Your teams are saved on this device only; no account, nothing shared. They lead each league's screen, go first in every scoreboard, are highlighted in standings and forecasts, and are the only teams you get updates about.</p><p class="note">You can mix sports: a few NBA teams, your NFL team, a college program.</p>`, { cls: 'c6' })}</div>`;
+    return;
+  }
+  $main.innerHTML = head('My teams', 'Loading your teams…', edit) + skeleton(5) + skeleton(8);
+  const ymd = todayCT();
+  const lks = [...new Set(teams.map(t => t.lk))];
+  const per = {};
+  await Promise.all(lks.map(async lk => {
+    const L = LEAGUES[lk]; const ids = teams.filter(t => t.lk === lk).map(t => t.id);
+    const [ctx, cur, R, inj, scheds, moves] = await Promise.all([forecastCtx(L, ymd).catch(() => null), standings(L).catch(() => null), rankings(L), injuries(L), Promise.all(ids.map(id => jSoft(`${API(L)}/teams/${id}/schedule`, 300000))), L.hasTransactions ? jSoft(`${API(L)}/transactions?limit=60`, 600000) : null]);
+    per[lk] = { L, ids, ctx, cur, R, inj, scheds, moves };
+  }));
+  const ai = await aiFor(ymd);
+  const render = () => {
+    const live = [], next = [], done = [], wire = [], cards = [];
+    const seen = new Set();
+    const fc = (L, g, ctx) => { try { return ctx ? forecast(L, g, ctx) : null; } catch { return null; } };
+    const cut = addDays(ymd, -7);
+    lks.forEach(lk => {
+      const { L, ids, ctx, cur, R, inj, scheds, moves } = per[lk];
+      ids.forEach((id, i) => {
+        const sched = scheds[i]; const evs = (sched && sched.events || []).map(e => parseEvent(e, L));
+        const today = S.today[lk].filter(g => g.home.id === id || g.away.id === id);
+        today.forEach(g => { const k = `${lk}:${g.id}`; if (seen.has(k)) return; seen.add(k); if (g.state === 'in') live.push({ L, g, f: fc(L, g, ctx) }); else if (g.state === 'pre') next.push({ L, g, f: fc(L, g, ctx) }); else done.push({ L, g, f: fc(L, g, ctx) }); });
+        if (!today.some(g => g.state !== 'post')) { const n = evs.find(g => g.state !== 'post'); if (n && !seen.has(`${lk}:${n.id}`)) { seen.add(`${lk}:${n.id}`); next.push({ L, g: n, f: fc(L, n, ctx) }); } }
+        evs.filter(g => g.state === 'post' && g.home.score != null && ymdOf(g.date) >= cut).forEach(g => { const k = `${lk}:${g.id}`; if (seen.has(k)) return; seen.add(k); done.push({ L, g, f: fc(L, g, ctx) }); });
+        if (inj && inj.byTeam[id]) inj.byTeam[id].list.filter(x => /out|doubt|question|day/i.test(x.status || '')).slice(0, 4).forEach(x => wire.push({ t: x.date || '', html: injItem(x, inj.byTeam[id].name, L) }));
+        if (moves && moves.transactions) moves.transactions.filter(x => x.team && String(x.team.id) === id).slice(0, 3).forEach(x => wire.push({ t: x.date || '', html: `<div class="wire-item"><span class="t">${esc(x.date ? dateShort(x.date) : '')}</span><span><b>${esc(x.team.displayName || '')}</b> · ${esc(x.description || '')}</span></div>` }));
+      });
+    });
+    const byTime = (a, b) => new Date(a.g.date) - new Date(b.g.date);
+    next.sort(byTime); done.sort((a, b) => byTime(b, a)); wire.sort((a, b) => String(b.t).localeCompare(String(a.t)));
+    const parts = [];
+    parts.push(head('My teams', `${teams.length} team${teams.length === 1 ? '' : 's'} · ${lks.map(lk => LEAGUES[lk].label).join(' · ')}${live.length ? ` · <span style="color:var(--live)">${live.length} live</span>` : ''}`, edit));
+    if (live.length) parts.push(`<div class="my-h" id="m-live"><span>Live now</span></div><div class="rail">${live.map(x => bug(x.g, x.f)).join('')}</div>`);
+    // team cards, grouped by sport
+    const groups = SPORTS.map(sp => ({ sp, lks: lks.filter(lk => LEAGUES[lk].sport === sp.key) })).filter(x => x.lks.length);
+    parts.push(`<section class="my" id="m-teams">${groups.map(({ sp, lks: gl }) => `<div class="my-h"><span>${esc(sp.label)}</span><small>${gl.map(lk => `<a href="#${lk}">${esc(LEAGUES[lk].label)}</a>`).join(' · ')}</small></div><div class="my-grid">${gl.flatMap(lk => { const P = per[lk]; return P.ids.map((id, i) => myTeamCard(P.L, id, P.cur, P.R, P.scheds[i], P.inj, P.ctx)); }).join('')}</div>`).join('')}</section>`);
+    const grid = [];
+    if (next.length) grid.push(mod('Up next', `<div class="fcl">${next.slice(0, 12).map(x => x.f ? fcRow(x.L, x.g, x.f, aiEntry(ai, x.g)) : `<div class="fcrow"><div class="fcrow-teams"><a href="${hrefG(x.L.key, x.g.id)}">${tn(x.g.away)} at ${tn(x.g.home)}</a><small>${esc(relDay(ymdOf(x.g.date)))} · ${esc(tip(x.g.date))} CT</small></div></div>`).join('')}</div>`, { cls: 'c6', id: 'm-next', x: `${next.length} game${next.length === 1 ? '' : 's'}` }));
+    if (done.length) grid.push(mod('Results', `<div class="bugs">${done.slice(0, 8).map(x => bug(x.g, x.f)).join('')}</div>`, { cls: 'c6', id: 'm-results', x: 'last seven days' }));
+    grid.push(mod('My wire', wire.length ? wire.slice(0, 14).map(w => w.html).join('') : '<p class="muted">Nothing new on the injury reports or the transaction wire for your teams.</p>', { cls: 'c6', id: 'm-wire', x: 'injuries · moves' }));
+    const todays = [...live, ...next.filter(x => ymdOf(x.g.date) === ymd)].map(x => ({ x, a: aiEntry(ai, x.g) })).filter(y => y.a);
+    if (todays.length) grid.push(mod('Predictions today', todays.map(({ x, a }) => `<div class="wire-item"><span class="t">${esc(x.L.label)}</span><span><a href="${hrefG(x.L.key, x.g.id)}"><b>${esc(x.g.away.abbr)} at ${esc(x.g.home.abbr)}</b></a> · ${esc(a.headline || '')}<br><span class="muted">${esc(a.read || '')}</span><br><small class="muted">Pick: <b>${esc(a.pick || '')}</b> · ${esc(a.confidence || '')} confidence</small></span></div>`).join(''), { cls: 'c6', id: 'm-pred', x: 'written each morning' }));
+    parts.push(`<nav class="jump" aria-label="Jump to">${[live.length ? ['m-live', 'Live'] : null, ['m-teams', 'Teams'], next.length ? ['m-next', 'Next'] : null, done.length ? ['m-results', 'Results'] : null, ['m-wire', 'Wire'], todays.length ? ['m-pred', 'Predictions'] : null].filter(Boolean).map(([id, l]) => `<a href="#${id}">${l}</a>`).join('')}</nav>`);
+    parts.push(`<div class="grid">${grid.join('')}</div>`);
+    $main.innerHTML = parts.join('');
+  };
+  render();
+  return { live: render };
+}
+
+HW.views = { my, center, scores, game, standings: standingsView, rankings: rankingsView, teams, team, players, player, forecasts, injuries: injuriesView, news, record: recordView };
 HW.render = { failMsg, state, lkOf, remember, COLLEGE, tuneLine, pickerOpen, pickerRefreshUpdates, notifyPrefs, notifySupport };
 })();

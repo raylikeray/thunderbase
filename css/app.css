@@ -51,6 +51,11 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 .sports a{position:relative;display:flex;align-items:center;padding:0 14px;height:30px;border-radius:999px;font:800 13px/1 var(--cond);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2);text-decoration:none;white-space:nowrap}
 .sports a:hover{color:var(--ink)}
 .sports a.on{background:var(--hdr);color:var(--on-hdr)}
+.sports a.star{padding:0 12px;font-size:16px;letter-spacing:0;color:var(--accent)}
+.sports a.star.on{background:var(--hdr);color:var(--accent)}
+.ltabs a .fv{font-style:normal;color:var(--accent);font-size:11px;margin-right:5px;vertical-align:1px}
+.my .my-grid+.my-h{margin-top:14px}
+.ltabs a.on .fv{color:var(--accent)}
 .sports a.live::before{content:attr(data-live);position:absolute;top:-3px;right:0;min-width:14px;height:14px;padding:0 3px;border-radius:7px;background:var(--live);color:#fff;font:800 9.5px/14px var(--cond);text-align:center;letter-spacing:0}
 /* league tabs: their own strip under the brand row */
 .lbar{border-top:1px solid var(--line);background:var(--surface)}
@@ -82,13 +87,20 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
   .brand{padding-right:10px}
   .brand span{display:none}
   .sports{flex:1;min-width:0}
-  .sports a{flex:1;justify-content:center;padding:0 6px;height:28px;font-size:12px;letter-spacing:.04em}
+  .sports a{flex:1;justify-content:center;padding:0 4px;height:28px;font-size:11.5px;letter-spacing:.02em}
+  .sports a.star{flex:0 0 auto;padding:0 9px;font-size:15px}
+  .bar .r{gap:8px}
+  .bell{width:30px;height:30px}
   .ltabs{height:38px;padding-left:0;padding-right:0}
   .ltabs a{flex:1;justify-content:center;padding:0 6px;font-size:13px;letter-spacing:.04em}
   .bar .r{padding-left:8px;font-size:11px}
   #freshText{display:none}
   #freshShort{display:inline}
   .secbar-in .d{display:none}
+}
+@media (max-width:430px){
+  #freshShort{display:none}
+  .fresh-dot{width:9px;height:9px}
 }
 
 /* ---------- page ---------- */

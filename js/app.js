@@ -59,11 +59,13 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) tick
    #<league>/forecasts             #<league>/injuries (NBA, WNBA)
    #<league>/news[/moves]          #record
    Older links (#scores/nba/…, #game/nba/123, #nba/game-123, #game-123 …) are mapped onto these. */
+const anyFavs = () => Object.values(favs.all()).some(a => a.length);
 const SECTIONS = ['center', 'scores', 'game', 'standings', 'rankings', 'teams', 'team', 'players', 'player', 'forecasts', 'injuries', 'news'];
 const { lkOf, remember } = HW.render;
 function parseHash() {
   let h = decodeURIComponent((location.hash || '').slice(1)).replace(/^\/+|\/+$/g, '');
   const LK = `(${ORDER.join('|')})`;
+  if (h === 'my' || ((!h || h === 'home' || h === 'tonight') && anyFavs())) return { lk: lkOf(store.get('lk', 'nba')), name: 'my', args: [] };
   if (!h || h === 'home' || h === 'tonight' || h === 'scores' || h === 'forecasts') { const lk = lkOf(store.get('lk', 'nba')); return { lk, name: h === 'scores' || h === 'forecasts' ? h : 'center', args: [lk] }; }
   if (h === 'record') return { lk: lkOf(store.get('lk', 'nba')), name: 'record', args: [] };
   let m;
@@ -78,14 +80,20 @@ function parseHash() {
   { const lk = lkOf(store.get('lk', 'nba')); return { lk, name: 'center', args: [lk] }; }
 }
 function paintNav(lk, name) {
-  const L = LEAGUES[lk]; const sp = sportKey(lk); store.set('lk:' + sp, lk);
-  if ($sports.dataset.on !== sp) { $sports.dataset.on = sp; $sports.innerHTML = SPORTS.map(x => `<a href="#${sportHome(x.key)}" data-sport="${x.key}" class="${x.key === sp ? 'on' : ''}"${x.key === sp ? ' aria-current="true"' : ''}>${x.label}</a>`).join(''); $ltabs.innerHTML = sportDef(sp).leagues.map(k => `<a href="#${k}" data-lk="${k}">${LEAGUES[k].label}</a>`).join(''); paintFresh(); }
-  else $sports.querySelectorAll('a').forEach(a => { a.href = '#' + sportHome(a.dataset.sport); });
-  $ltabs.querySelectorAll('a').forEach(a => { const on = a.dataset.lk === lk; a.classList.toggle('on', on); if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+  const L = LEAGUES[lk]; const sp = sportKey(lk); const onMy = name === 'my'; if (!onMy) store.set('lk:' + sp, lk);
+  const F = favs.all(); const favLks = ORDER.filter(k => (F[k] || []).length);
+  const key = `${sp}|${onMy ? 'my' : ''}|${favLks.join(',')}`;
+  if ($sports.dataset.on !== key) {
+    $sports.dataset.on = key;
+    $sports.innerHTML = `<a href="#my" data-sport="my" class="star${onMy ? ' on' : ''}" aria-label="My teams" title="My teams">★</a>` + SPORTS.map(x => `<a href="#${sportHome(x.key)}" data-sport="${x.key}" class="${!onMy && x.key === sp ? 'on' : ''}"${!onMy && x.key === sp ? ' aria-current="true"' : ''}>${x.label}</a>`).join('');
+    $ltabs.innerHTML = sportDef(sp).leagues.map(k => `<a href="#${k}" data-lk="${k}">${favLks.includes(k) ? '<i class="fv" aria-label="has my teams">★</i>' : ''}${LEAGUES[k].label}</a>`).join('');
+    paintFresh();
+  } else $sports.querySelectorAll('a[data-sport]').forEach(a => { if (a.dataset.sport !== 'my') a.href = '#' + sportHome(a.dataset.sport); });
+  $ltabs.querySelectorAll('a').forEach(a => { const on = !onMy && a.dataset.lk === lk; a.classList.toggle('on', on); if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
   const sec = name === 'game' ? 'scores' : name === 'team' ? 'teams' : name === 'player' ? 'players' : name;
-  const items = [['center', 'Center', `#${lk}`], ['scores', 'Scores', `#${lk}/scores`], L.hasRankings ? ['rankings', 'Rankings', `#${lk}/rankings`] : null, ['standings', 'Standings', `#${lk}/standings`], ['teams', 'Teams', `#${lk}/teams`], ['players', 'Players', `#${lk}/players`], ['forecasts', 'Forecasts', `#${lk}/forecasts`], L.hasInjuries ? ['injuries', 'Injuries', `#${lk}/injuries`] : null, ['news', 'News', `#${lk}/news`], ['record', 'Record', '#record']].filter(Boolean);
+  const items = onMy ? [['my', 'My teams', '#my'], ['record', 'Record', '#record']] : [['center', 'Center', `#${lk}`], ['scores', 'Scores', `#${lk}/scores`], L.hasRankings ? ['rankings', 'Rankings', `#${lk}/rankings`] : null, ['standings', 'Standings', `#${lk}/standings`], ['teams', 'Teams', `#${lk}/teams`], ['players', 'Players', `#${lk}/players`], ['forecasts', 'Forecasts', `#${lk}/forecasts`], L.hasInjuries ? ['injuries', 'Injuries', `#${lk}/injuries`] : null, ['news', 'News', `#${lk}/news`], ['record', 'Record', '#record']].filter(Boolean);
   $subnav.innerHTML = items.map(([k, l, h]) => `<a href="${h}" class="${k === sec ? 'on' : ''}"${k === sec ? ' aria-current="page"' : ''}>${l}</a>`).join('') + `<span class="d" id="subd"></span>`;
-  params(L).then(P => { const d = document.getElementById('subd'); if (d && P) d.textContent = HW.render.tuneLine(P); }).catch(() => { });
+  if (!onMy) params(L).then(P => { const d = document.getElementById('subd'); if (d && P) d.textContent = HW.render.tuneLine(P, L); }).catch(() => { });
   // keep the active section in view on narrow screens
   const on = $subnav.querySelector('a.on'); if (on) { const L = on.offsetLeft, W = on.offsetWidth, sl = $subnav.scrollLeft, JW = $subnav.clientWidth; if (L < sl || L + W > sl + JW) $subnav.scrollLeft = Math.max(0, L - (JW - W) / 2); }
 }
@@ -102,8 +110,9 @@ async function route() {
     const res = await HW.views[r.name](...r.args);
     if (seq === navSeq) S.route = res || null;
   } catch (e) { console.error(e); if (seq === navSeq) $main.innerHTML = HW.render.failMsg('this page'); }
-  const names = { center: '', scores: 'Scores', game: 'Game', standings: 'Standings', rankings: 'Rankings', teams: 'Teams', team: 'Team', players: 'Players', player: 'Player', forecasts: 'Forecasts', injuries: 'Injuries', news: 'News', record: 'The record' };
-  document.title = r.name === 'center' ? `${LEAGUES[r.lk].label} · Tipoff` : r.name === 'record' ? 'The record · Tipoff' : `${LEAGUES[r.lk].label} ${names[r.name] || ''} · Tipoff`;
+  const names = { my: 'My teams', center: '', scores: 'Scores', game: 'Game', standings: 'Standings', rankings: 'Rankings', teams: 'Teams', team: 'Team', players: 'Players', player: 'Player', forecasts: 'Forecasts', injuries: 'Injuries', news: 'News', record: 'The record' };
+  S.baseHash = location.hash && !/^#m-/.test(location.hash) ? location.hash : (S.baseHash || '#');
+  document.title = r.name === 'my' ? 'My teams · Tipoff' : r.name === 'center' ? `${LEAGUES[r.lk].label} · Tipoff` : r.name === 'record' ? 'The record · Tipoff' : `${LEAGUES[r.lk].label} ${names[r.name] || ''} · Tipoff`;
   // in-page jump bar: highlight the module at the top of the screen
   const jump = document.querySelector('.jump');
   if (jump) {
@@ -117,7 +126,7 @@ async function route() {
 }
 window.addEventListener('hashchange', () => {
   const h = location.hash;
-  if (/^#m-/.test(h)) { const el = document.getElementById(h.slice(1)); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); } history.replaceState(null, '', '#' + (S.league || 'nba')); return; }
+  if (/^#m-/.test(h)) { const el = document.getElementById(h.slice(1)); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); } history.replaceState(null, '', S.baseHash || '#' + (S.league || 'nba')); return; }
   window.scrollTo({ top: 0 }); $main.focus({ preventScroll: true }); route();
 });
 
