@@ -142,7 +142,8 @@ document.addEventListener('click', e => {
     if (a === 'pcat') { e.preventDefault(); if (HW.views.players.setCat) HW.views.players.setCat(act.dataset.k); return; }
     if (a === 'fav') { const on = favs.toggle(act.dataset.lk, act.dataset.id); act.textContent = on ? '★ In my teams' : '☆ Add to my teams'; act.setAttribute('aria-pressed', on); return; }
     if (a === 'reload') { e.preventDefault(); cache.clear(); tick().then(route); return; }
-    if (a === 'pick') { e.preventDefault(); HW.render.pickerOpen(act.dataset.lk); return; }
+    if (a === 'pick') { e.preventDefault(); HW.render.pickerOpen(act.dataset.lk, { section: act.dataset.section }); return; }
+    if (a === 'watchsvc') { const cur = HW.myServices(); const id = act.dataset.id; store.set('watch', cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id]); HW.render.pickerRefreshServices(); return; }
     if (a === 'picklk') { HW.render.pickerOpen(act.dataset.lk); return; }
     if (a === 'updates') { e.preventDefault(); HW.render.pickerOpen(S.league || 'nba', { updates: 'only' }); return; }
     if (a === 'nkind') { const P = HW.render.notifyPrefs(); P[act.dataset.k] = act.checked; store.set('notify', P); syncPushSoon(); return; }

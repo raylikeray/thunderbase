@@ -467,6 +467,12 @@ a.watch-net:hover{color:var(--link)}
 .pick-t.on{background:var(--hdr);color:#fff;border-color:var(--hdr)}
 .pick-t.on::after{content:"★";margin-left:auto;color:var(--accent);flex:none}
 .pick-t[hidden]{display:none}
+.pick-svc{padding:0 0 12px;margin:0 0 12px;border-bottom:1px solid var(--line)}
+.svc-g{margin:0 0 8px}
+.svc-g small{display:block;font:700 10px/1 var(--ui);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin:0 0 5px}
+.pick-t.svc .ord{flex:none;width:18px;height:18px;border-radius:50%;background:var(--accent);color:#fff;font:800 11px/18px var(--cond);text-align:center}
+.pick-t.svc.on::after{content:none}
+.btn.watch small{font:600 11px/1 var(--ui);opacity:.8;margin-left:4px}
 /* install strip */
 .install{position:fixed;left:12px;right:12px;bottom:max(12px,env(safe-area-inset-bottom,0px));z-index:45;display:flex;align-items:center;gap:12px;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:10px 12px;box-shadow:0 12px 40px -12px rgba(15,20,32,.45);font:500 12.5px/1.4 var(--ui);max-width:640px;margin:0 auto}
 .install img{width:34px;height:34px;flex:none;border-radius:8px}

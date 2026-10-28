@@ -2,7 +2,7 @@
 (function () {
 'use strict';
 const HW = window.HW;
-const { LEAGUES, ORDER, SPORTS, sportOf, watchFor, statCategory, STAT_CATS, esc, jSoft, todayCT, addDays, compact, expand, ymdOf, dayLabel, relDay, tip, dateShort, ago, pct, sign, ordinal, store, API, WEB, logoUrl, seasonYear, favs,
+const { LEAGUES, ORDER, SPORTS, sportOf, watchFor, SERVICES, SERVICE_GROUPS, myServices, statCategory, STAT_CATS, esc, jSoft, todayCT, addDays, compact, expand, ymdOf, dayLabel, relDay, tip, dateShort, ago, pct, sign, ordinal, store, API, WEB, logoUrl, seasonYear, favs,
   parseEvent, isLive, isFav, interest, scoreboard, standings, rankings, record, params, injuries, forecast, forecastCtx, leaguePlayers, S } = HW;
 const $main = document.getElementById('main');
 const COLLEGE = ['ncaam', 'ncaaw', 'ncaaf', 'ncaab'];
@@ -35,13 +35,16 @@ function fcText(g, f) {
   if (g.state === 'post') { const won = g.home.score > g.away.score ? g.home : g.away; const hit = won === fav; return { label: `${hit ? 'Hit' : 'Miss'} · ${esc(fav.abbr)} ${pct(p)}`, cls: hit ? 'hit' : 'miss', fill: p }; }
   return { label: `${esc(fav.abbr)} ${pct(p)}${f.live ? ' live' : ''}`, cls: '', fill: p };
 }
+/* intent:// links (Android app launch) must navigate the current tab; web links open a new one */
+const wOpen = w => w.href.startsWith('intent:') ? '' : ' target="_blank" rel="noopener"';
+const wText = (w, net) => w.bundle ? `${esc(net || w.net)} · ${esc(w.short)}` : esc(net || w.net);
 function bug(g, f) {
   const L = LEAGUES[g.lk];
   const h = g.state === 'in' ? `<span>Live · ${esc(g.detail)}${g.sit && g.sit.short ? ` · ${esc(g.sit.short)}` : ''}</span>` : g.state === 'pre' ? `<span>${esc(tip(g.date))} CT</span>` : `<span>${esc(g.detail || 'Final')}</span>`;
   const row = (s, other) => { const lose = g.state === 'post' && s.score != null && other.score != null && s.score < other.score; return `<div class="tm"><span class="ab" style="background:${s.color}">${esc(s.abbr)}</span><span class="nm"><span class="n">${rk(s)}${esc(s.short)}${g.sit && g.sit.poss === s.id ? ' <i class="poss" title="has the ball" aria-label="has the ball"></i>' : ''}</span><small>${esc(s.rec)}</small></span><span class="s${lose ? ' lo' : ''}" data-s="${g.id}-${s.id}">${g.state === 'pre' ? '' : esc(s.score ?? '')}</span></div>`; };
   const t = f ? fcText(g, f) : null;
   const w = g.state === 'post' ? null : watchFor(g, L)[0];
-  const tv = g.state === 'post' ? `<span class="tv">Box score</span>` : w ? `<a class="tv wl" href="${esc(w.url)}" target="_blank" rel="noopener" title="Watch on ${esc(w.label)}">${esc(g.tv.label || w.net)} ▸</a>` : `<span class="tv">${esc(g.tv.label || L.tag)}</span>`;
+  const tv = g.state === 'post' ? `<span class="tv">Box score</span>` : w ? `<a class="tv wl" href="${esc(w.href)}"${wOpen(w)} title="Watch on ${esc(w.label)}">${wText(w, g.tv.label)} ▸</a>` : `<span class="tv">${esc(g.tv.label || L.tag)}</span>`;
   return `<div class="bug${isFav(g) ? ' fav' : ''}" data-href="${hrefG(g.lk, g.id)}" role="link" tabindex="0" aria-label="${esc(g.away.name)} at ${esc(g.home.name)}, ${esc(g.detail)}"><div class="h${isLive(g) ? ' on' : ''}">${h}${tv}</div>${row(g.away, g.home)}${row(g.home, g.away)}${t ? `<div class="f"><span class="${t.cls}">${t.label}</span><b><i style="width:${t.fill * 100}%"></i></b></div>` : ''}</div>`;
 }
 function sortGames(list) { return [...list].sort((a, b) => (a.state === 'in' ? 0 : a.state === 'pre' ? 1 : 2) - (b.state === 'in' ? 0 : b.state === 'pre' ? 1 : 2) || isFav(b) - isFav(a) || interest(b) - interest(a) || new Date(a.date) - new Date(b.date)); }
@@ -76,11 +79,11 @@ function hero(L, g, f, opts = {}) {
   return `<article class="hero" aria-label="${esc(g.away.name)} at ${esc(g.home.name)}">
     <div class="top"><div><h1><a href="${hrefT(L.key, g.away.id)}">${tn(g.away)}</a> at <a href="${hrefT(L.key, g.home.id)}">${tn(g.home)}</a></h1><div class="sub">${esc(statusLine(g))}${g.note ? ' · ' + esc(g.note) : ''}</div></div>${badge}</div>
     <div class="score">${side(g.away, aLo)}${mid}${side(g.home, hLo)}</div>
-    <div class="foot"><div>${f ? fbar(L, g, f) : ''}</div><div style="display:flex;gap:8px;flex-wrap:wrap">${g.state !== 'post' ? watchFor(g, L).slice(0, 2).map(w => `<a class="btn sm watch" href="${esc(w.url)}" target="_blank" rel="noopener">${live ? 'Watch live' : 'Watch'} on ${esc(w.label)}</a>`).join('') : ''}${opts.actions || ''}</div></div>
+    <div class="foot"><div>${f ? fbar(L, g, f) : ''}</div><div style="display:flex;gap:8px;flex-wrap:wrap">${g.state !== 'post' ? watchFor(g, L).slice(0, 2).map(w => `<a class="btn sm watch" href="${esc(w.href)}"${wOpen(w)}>${live ? 'Watch live' : 'Watch'} on ${esc(w.short)}${w.bundle ? ` <small>(${esc(w.net)})</small>` : ''}</a>`).join('') : ''}${opts.actions || ''}</div></div>
   </article>`;
 }
 /* the broadcaster as a link to its service when we know one, otherwise plain text */
-const tvLink = (L, g) => { const w = g.state === 'post' ? null : watchFor(g, L)[0]; return w ? `<a class="wl" href="${esc(w.url)}" target="_blank" rel="noopener" title="Watch on ${esc(w.label)}">${esc(g.tv.label)} ▸</a>` : esc(g.tv.label); };
+const tvLink = (L, g) => { const w = g.state === 'post' ? null : watchFor(g, L)[0]; return w ? `<a class="wl" href="${esc(w.href)}"${wOpen(w)} title="Watch on ${esc(w.label)}">${wText(w, g.tv.label)} ▸</a>` : esc(g.tv.label); };
 function fcRow(L, g, f, opts = {}) {
   const ph = f.pHome, pa = 1 - ph;
   const open = S.open.has('fc-' + g.id);
@@ -146,6 +149,12 @@ function pickerBody(lk, cur, R) {
   const groups = college ? [...cur.groups].sort((a, b) => a.name.localeCompare(b.name)) : cur.groups;
   return (college ? `<input class="inp" id="pickq" type="search" placeholder="Find a school or conference" aria-label="Find a team" style="margin-bottom:10px;width:100%">` : '') + groups.map(gp => `<div class="pick-g" data-name="${esc(gp.name.toLowerCase())}"><h4 class="conf-h">${esc(gp.name)}</h4><div class="pick-grid">${gp.rows.map(chip).join('')}</div></div>`).join('');
 }
+/* "Where I watch": the services the viewer pays for, in the order they tapped them */
+function servicesBody() {
+  const mine = myServices();
+  const chip = id => { const s = SERVICES[id]; const i = mine.indexOf(id); return `<button class="pick-t svc${i >= 0 ? ' on' : ''}" data-act="watchsvc" data-id="${id}" aria-pressed="${i >= 0}">${i >= 0 ? `<b class="ord">${i + 1}</b>` : ''}<span>${esc(s.label)}</span></button>`; };
+  return `<div class="pick-svc" id="pick-svc"><h4 class="conf-h" style="margin-top:0">Where I watch</h4><p class="note" style="margin:0 0 8px">Tap the services you pay for, in the order you reach for them. Game links then open the first one that carries the game, in its app.</p>${SERVICE_GROUPS.map(gp => `<div class="svc-g"><small>${esc(gp.label)}</small><div class="pick-grid">${gp.ids.map(chip).join('')}</div></div>`).join('')}${mine.length ? `<p class="note" style="margin:8px 0 0">Yours, in order: ${mine.map(id => esc(SERVICES[id].short)).join(' → ')}. Channels none of them carry open in the network's own app.</p>` : ''}</div>`;
+}
 function updatesBody() {
   const P = notifyPrefs(); const sup = notifySupport(); const granted = sup.ok && Notification.permission === 'granted';
   const rows = NOTIFY_KINDS.map(([k, l, d]) => `<label class="nrow"><input type="checkbox" data-act="nkind" data-k="${k}" ${P[k] ? 'checked' : ''}><span><b>${l}</b><small>${d}</small></span></label>`).join('') + `<label class="nrow wrap"><span><b>Score updates</b><small>One notification per game that updates in place</small></span><select class="sel" data-act="nscore" aria-label="Score updates"><option value="quarters"${P.score === 'quarters' ? ' selected' : ''}>Quarter or inning ends, lead changes</option><option value="often"${P.score === 'often' ? ' selected' : ''}>Every few minutes</option><option value="off"${P.score === 'off' ? ' selected' : ''}>Off</option></select></label>`;
@@ -161,9 +170,10 @@ async function pickerOpen(lk, opts = {}) {
   // same two-level switch as the header: a sport row, then that sport's leagues
   const spKey = LEAGUES[lk].sport; const spDef = SPORTS.find(x => x.key === spKey) || SPORTS[0];
   const tabs = `<div class="pick-nav"><div class="pick-sports">${SPORTS.map(x => `<button class="${x.key === spKey ? 'on' : ''}" data-act="picklk" data-lk="${x.key === spKey ? lk : (x.leagues.includes(store.get('lk:' + x.key, '')) ? store.get('lk:' + x.key, '') : x.leagues[0])}" aria-pressed="${x.key === spKey}">${esc(x.label)}</button>`).join('')}</div><div class="pick-tabs">${spDef.leagues.map(k => `<button class="pick-lk${k === lk ? ' on' : ''}" data-act="picklk" data-lk="${k}" aria-pressed="${k === lk}">${esc(LEAGUES[k].label)}</button>`).join('')}</div></div>`;
-  dlg.innerHTML = `<div class="pick-h"><b>${welcome ? 'Welcome to Tipoff' : 'My teams'}</b><span class="x">${welcome ? 'every game, one screen' : 'tap the teams you follow'}</span><button class="btn sm" data-act="pickdone">Done</button></div>${welcome ? '<p class="pick-w">Pick the teams you follow. They lead every screen, go first in the scoreboard, and are the only ones you get updates about. Switch sports and leagues above the list.</p>' : ''}${tabs}<div class="pick-b"><p class="muted" style="margin:0 0 8px">Loading teams…</p></div><div class="pick-f" id="pickf">${opts.updates !== false ? updatesBody() : ''}</div>`;
+  dlg.innerHTML = `<div class="pick-h"><b>${welcome ? 'Welcome to Tipoff' : 'My teams'}</b><span class="x">${welcome ? 'every game, one screen' : 'tap the teams you follow'}</span><button class="btn sm" data-act="pickdone">Done</button></div>${welcome ? '<p class="pick-w">Pick the teams you follow. They lead every screen, go first in the scoreboard, and are the only ones you get updates about. Switch sports and leagues above the list.</p>' : ''}${tabs}<div class="pick-b"><p class="muted" style="margin:0 0 8px">Loading teams…</p></div><div class="pick-f" id="pickf"><div id="picks">${servicesBody()}</div>${opts.updates !== false ? updatesBody() : ''}</div>`;
   if (!dlg.open) dlg.showModal();
   dlg.scrollTop = 0;
+  if (opts.section === 'watch') { const el = dlg.querySelector('#pick-svc'); if (el) setTimeout(() => el.scrollIntoView({ block: 'start' }), 50); }
   if (opts.updates === 'only') { dlg.querySelector('.pick-b').hidden = true; dlg.querySelector('.pick-nav').hidden = true; dlg.querySelector('.pick-h b').textContent = 'Updates'; dlg.querySelector('.pick-h .x').textContent = 'for the teams you picked'; return; }
   const L = LEAGUES[lk];
   let cur; try { cur = await standings(L); } catch { dlg.querySelector('.pick-b').innerHTML = failMsg('teams'); return; }
@@ -172,7 +182,8 @@ async function pickerOpen(lk, opts = {}) {
   const q = document.getElementById('pickq');
   if (q) q.addEventListener('input', () => { const v = q.value.trim().toLowerCase(); dlg.querySelectorAll('.pick-g').forEach(gq => { let any = false; gq.querySelectorAll('.pick-t').forEach(c => { const hit = !v || (c.dataset.q || c.textContent.toLowerCase()).includes(v) || gq.dataset.name.includes(v); c.hidden = !hit; any = any || hit; }); gq.hidden = !any; }); });
 }
-function pickerRefreshUpdates() { const f = document.getElementById('pickf'); if (f) f.innerHTML = updatesBody(); }
+function pickerRefreshUpdates() { const f = document.getElementById('pickf'); if (f) f.innerHTML = `<div id="picks">${servicesBody()}</div>` + updatesBody(); }
+function pickerRefreshServices() { const f = document.getElementById('picks'); if (f) f.innerHTML = servicesBody(); }
 /* ================= CENTER ================= */
 async function center(lk) {
   const L = LEAGUES[lk]; remember(lk);
@@ -252,9 +263,10 @@ async function center(lk) {
     grid.push(mod('Model', modelBody, { cls: 'c3', id: 'm-model', x: 'learns nightly', href: '#record' }));
     // where to watch: today's games by service
     { const on = games.filter(g => g.state !== 'post'); const by = new Map();
-      on.forEach(g => { const w = watchFor(g, L)[0]; const key = w ? w.url : (g.tv.label || ''); if (!by.has(key)) by.set(key, { w, label: w ? w.label : (g.tv.label || 'TV not listed'), games: [] }); by.get(key).games.push(g); });
-      const rows = [...by.values()].sort((a, b) => (b.w ? 1 : 0) - (a.w ? 1 : 0) || b.games.length - a.games.length).slice(0, 8).map(r => `<div class="watch-row">${r.w ? `<a class="watch-net" href="${esc(r.w.url)}" target="_blank" rel="noopener">${esc(r.label)} ▸</a>` : `<span class="watch-net muted">${esc(r.label)}</span>`}<span class="watch-games">${r.games.slice(0, 6).map(g => `<a href="${hrefG(lk, g.id)}">${esc(g.away.abbr)}–${esc(g.home.abbr)}${g.state === 'in' ? ' <i class="muted">live</i>' : ` <i class="muted">${esc(tip(g.date))}</i>`}</a>`).join(' · ')}${r.games.length > 6 ? ` <span class="muted">+${r.games.length - 6}</span>` : ''}</span></div>`).join('');
-      if (rows) grid.push(mod('Where to watch', rows + '<p class="note">Tap a service to open its app or site. Listings are ESPN\'s; regional channels vary by market.</p>', { cls: 'c3', id: 'm-watch', x: L.weekly ? 'this week' : 'today' })); }
+      on.forEach(g => { const w = watchFor(g, L)[0]; const key = w ? w.id + '|' + w.url : (g.tv.label || ''); if (!by.has(key)) by.set(key, { w, label: w ? w.short : (g.tv.label || 'TV not listed'), games: [] }); by.get(key).games.push({ g, w }); });
+      const rows = [...by.values()].sort((a, b) => (b.w && b.w.mine ? 2 : b.w ? 1 : 0) - (a.w && a.w.mine ? 2 : a.w ? 1 : 0) || b.games.length - a.games.length).slice(0, 8).map(r => `<div class="watch-row">${r.w ? `<a class="watch-net" href="${esc(r.w.href)}"${wOpen(r.w)}>${esc(r.label)} ▸</a>` : `<span class="watch-net muted">${esc(r.label)}</span>`}<span class="watch-games">${r.games.slice(0, 6).map(({ g, w }) => `<a href="${hrefG(lk, g.id)}">${esc(g.away.abbr)}–${esc(g.home.abbr)}${w && w.bundle ? ` <i class="muted">${esc(w.net)}</i>` : ''}${g.state === 'in' ? ' <i class="muted">live</i>' : ` <i class="muted">${esc(tip(g.date))}</i>`}</a>`).join(' · ')}${r.games.length > 6 ? ` <span class="muted">+${r.games.length - 6}</span>` : ''}</span></div>`).join('');
+      const mineN = myServices().length;
+      if (rows) grid.push(mod('Where to watch', rows + `<p class="note">${mineN ? 'Links open the services you picked when they carry the game.' : 'Tap a service to open its app or site.'} <a href="#" data-act="pick" data-lk="${lk}" data-section="watch">${mineN ? 'Edit my services' : 'Tell Tipoff what you pay for'}</a> and game links open there.</p>`, { cls: 'c3', id: 'm-watch', x: L.weekly ? 'this week' : 'today' })); }
     // news
     if (news && news.articles && news.articles.length) grid.push(mod('News', `<div class="news">${news.articles.slice(0, 5).map(a => { const img = a.images && a.images[0] && a.images[0].url; return `<a href="${esc(a.links && a.links.web && a.links.web.href || '#')}" target="_blank" rel="noopener">${img ? `<img class="im" src="${esc(img)}" alt="" loading="lazy">` : '<span class="im"></span>'}<div><h5>${esc(a.headline)}</h5><small>${esc(ago(a.published))}${a.byline ? ' · ' + esc(a.byline) : ''}</small></div></a>`; }).join('')}</div>`, { cls: 'c3', id: 'm-news', x: 'latest', href: hrefS('news', lk) }));
     parts.push(`<div class="grid">${grid.join('')}</div>`);
@@ -684,5 +696,5 @@ async function my() {
 }
 
 HW.views = { my, center, scores, game, standings: standingsView, rankings: rankingsView, teams, team, players, player, forecasts, injuries: injuriesView, news, record: recordView };
-HW.render = { failMsg, state, lkOf, remember, COLLEGE, tuneLine, pickerOpen, pickerRefreshUpdates, notifyPrefs, notifySupport };
+HW.render = { failMsg, state, lkOf, remember, COLLEGE, tuneLine, pickerOpen, pickerRefreshUpdates, pickerRefreshServices, notifyPrefs, notifySupport };
 })();

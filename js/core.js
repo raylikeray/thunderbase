@@ -274,65 +274,79 @@ async function leaguePlayers(L, season) {
   return { rows, label };
 }
 
-/* ---------- where to watch: broadcaster name → the service's live page (universal links open the app when installed) ---------- */
-const WATCH = [
-  [/^(ESPN\+?|ESPN ?[23]|ESPNU|ESPNEWS|ESPN Deportes|ESPN3|ESPN App|SECN\+?|SEC Network\+?|ACCN\+?|ACCNX|ACC Network( Extra)?|Longhorn Network|LHN|Big 12 Now)$/i, 'ESPN', 'https://www.espn.com/watch'],
-  [/^ABC$/i, 'ABC', 'https://abc.com/watch-live'],
-  [/^(NBC|NBC Sports)$/i, 'NBC', 'https://www.nbc.com/live'],
-  [/^Peacock$/i, 'Peacock', 'https://www.peacocktv.com/sports'],
-  [/^(USA|USA Network)$/i, 'USA Network', 'https://www.usanetwork.com/live'],
-  [/^CBS$/i, 'CBS', 'https://www.cbs.com/live-tv/'],
-  [/^(CBSSN|CBS Sports Network)$/i, 'CBS Sports Network', 'https://www.cbssports.com/cbs-sports-network/'],
-  [/^Paramount\+$/i, 'Paramount+', 'https://www.paramountplus.com/live-tv/'],
-  [/^(FOX|FS1|FS2|FOX Sports ?[12]?|FOX Deportes|FOX One)$/i, 'FOX Sports', 'https://www.foxsports.com/live'],
-  [/^(BTN|Big Ten Network)$/i, 'Big Ten Network', 'https://www.foxsports.com/live/btn'],
-  [/^(TNT|TBS|truTV|Max|HBO Max|TNT Sports)$/i, 'Max', 'https://www.max.com'],
-  [/^(Prime Video|Amazon Prime Video|Amazon|Prime)$/i, 'Prime Video', 'https://www.amazon.com/primevideo', { basketball: 'https://www.amazon.com/nba', football: 'https://www.amazon.com/tnf' }],
-  [/^Netflix$/i, 'Netflix', 'https://www.netflix.com'],
-  [/^Apple TV\+?$/i, 'Apple TV', 'https://tv.apple.com'],
-  [/^(NBA ?TV)$/i, 'NBA TV', 'https://www.nba.com/watch/nba-tv'],
-  [/^NBA League Pass$/i, 'NBA League Pass', 'https://www.nba.com/watch'],
-  [/^WNBA League Pass$/i, 'WNBA League Pass', 'https://www.wnba.com/watch'],
-  [/^ION$/i, 'ION', 'https://iontelevision.com'],
-  [/^(The CW|CW)$/i, 'The CW', 'https://www.cwtv.com/live'],
-  [/^(NFL Network|NFLN|NFL\+|NFL RedZone)$/i, 'NFL+', 'https://www.nfl.com/plus/'],
-  [/^(YouTube TV|YouTube|NFL Sunday Ticket)$/i, 'YouTube TV', 'https://tv.youtube.com'],
-  [/^(MLB Network|MLBN)$/i, 'MLB Network', 'https://www.mlb.com/network'],
-  [/^MLB\.TV$/i, 'MLB.TV', 'https://www.mlb.com/tv'],
-  [/^(Roku|The Roku Channel)$/i, 'The Roku Channel', 'https://therokuchannel.roku.com'],
-  [/FanDuel Sports|FDSN/i, 'FanDuel Sports Network', 'https://www.fanduelsportsnetwork.com'],
-  [/^YES( Network)?$/i, 'YES Network', 'https://www.yesnetwork.com'],
-  [/^MSG/i, 'MSG Networks', 'https://www.msgnetworks.com'],
-  [/^NESN/i, 'NESN', 'https://nesn.com'],
-  [/^SNY$/i, 'SNY', 'https://sny.tv'],
-  [/Marquee/i, 'Marquee Sports Network', 'https://www.marqueesportsnetwork.com'],
-  [/Spectrum SportsNet/i, 'Spectrum SportsNet', 'https://www.spectrumsportsnet.com'],
-  [/^NBCS|^NBC Sports (Bay Area|Boston|California|Philadelphia|Chicago)/i, 'NBC Sports', 'https://www.nbcsports.com/regional'],
-  [/ROOT Sports/i, 'ROOT Sports', 'https://www.rootsports.com'],
-  [/Monumental/i, 'Monumental Sports Network', 'https://monumentalsportsnetwork.com'],
-  [/Altitude/i, 'Altitude', 'https://www.altitudesports.net'],
-  [/Space City/i, 'Space City Home Network', 'https://spacecityhn.com'],
-  [/CHSN|Chicago Sports Network/i, 'Chicago Sports Network', 'https://chsn.com'],
-  [/Gulf Coast Sports/i, 'Gulf Coast Sports', 'https://www.gulfcoastsports.com'],
-  [/Jazz\+|KJZZ/i, 'Jazz+', 'https://www.nba.com/jazz/jazzplus'],
-  [/Mountain West Network|MW Network/i, 'Mountain West Network', 'https://themw.com/watch'],
-  [/^Stadium$/i, 'Stadium', 'https://watchstadium.com'],
-  [/^(ESPN\+ ?\/ ?Hulu|Hulu)$/i, 'Hulu', 'https://www.hulu.com/live-tv']
+/* ---------- where to watch ----------
+   SERVICES: every app a game can be watched in. `match` = channel names the service itself streams; `channels` = what a
+   live-TV bundle carries. The viewer picks the services they pay for (store key `watch`, in priority order); a game's
+   options are their services that carry its channel first, then the channel's own app. On Android the link is an
+   intent:// URL that opens the installed app and falls back to the web; elsewhere it is the service's live page. */
+const NAT = {
+  espnFam: /^(ESPN ?[23]?|ESPNU|ESPNEWS|ESPN Deportes|ESPN3|ESPN App|SECN|SEC Network|ACCN|ACCNX|ACC Network( Extra)?|Longhorn Network|LHN)$/i,
+  cable: /^(TNT|TBS|truTV|NBA ?TV|FS1|FS2|FOX Sports ?[12]|USA( Network)?|NFL Network|NFLN|NFL RedZone|MLB Network|MLBN|BTN|Big Ten Network|CBSSN|CBS Sports Network)$/i,
+  bcast: /^(FOX|NBC|ABC)$/i,
+  regional: /FanDuel Sports|FDSN|^YES|^MSG|^NESN|^SNY$|Marquee|Spectrum SportsNet|^NBCS|^NBC Sports (Bay Area|Boston|California|Philadelphia|Chicago)|ROOT Sports|Monumental|Altitude|Space City|CHSN|Chicago Sports Network|Gulf Coast Sports/i
+};
+const any = (...res) => ({ test: n => res.some(r => r.test(n)) });
+const SERVICES = {
+  // live-TV bundles
+  sling:     { label: 'Sling TV', short: 'Sling', web: 'https://watch.sling.com', android: 'com.sling', host: 'watch.sling.com/', bundle: true, channels: any(NAT.espnFam, NAT.cable, NAT.bcast) },
+  youtubetv: { label: 'YouTube TV', short: 'YouTube TV', web: 'https://tv.youtube.com', android: 'com.google.android.youtube.tvunplugged', host: 'tv.youtube.com/', bundle: true, channels: any(NAT.espnFam, NAT.cable, NAT.bcast, /^(CBS|ION|The CW|CW)$/i) },
+  hululive:  { label: 'Hulu + Live TV', short: 'Hulu', web: 'https://www.hulu.com/live-tv', android: 'com.hulu.plus', host: 'www.hulu.com/live-tv', bundle: true, channels: any(NAT.espnFam, NAT.cable, NAT.bcast, /^(CBS|ION|The CW|CW|ESPN\+)$/i) },
+  fubo:      { label: 'Fubo', short: 'Fubo', web: 'https://www.fubo.tv', android: 'com.fubo.android', host: 'www.fubo.tv/', bundle: true, channels: any(NAT.espnFam, /^(NBA ?TV|FS1|FS2|USA( Network)?|NFL Network|NFLN|NFL RedZone|MLB Network|MLBN|BTN|Big Ten Network|CBSSN|CBS Sports Network|CBS|ION|The CW|CW)$/i, NAT.bcast, NAT.regional) },
+  directv:   { label: 'DirecTV Stream', short: 'DirecTV', web: 'https://stream.directv.com', android: 'com.att.tv', host: 'stream.directv.com/', bundle: true, channels: any(NAT.espnFam, NAT.cable, NAT.bcast, /^(CBS|ION|The CW|CW)$/i, NAT.regional) },
+  // networks' own apps and streamers
+  abc:       { label: 'ABC', short: 'ABC', web: 'https://abc.com/watch-live', android: 'com.disney.datg.videoplatforms.android.abc', host: 'abc.com/watch-live', match: /^ABC$/i },
+  espn:      { label: 'ESPN app', short: 'ESPN', web: 'https://www.espn.com/watch', android: 'com.espn.score_center', host: 'www.espn.com/watch', match: any(NAT.espnFam, /^(ESPN\+|SECN\+|ACCN\+|Big 12 Now|ABC)$/i) },
+  peacock:   { label: 'Peacock', short: 'Peacock', web: 'https://www.peacocktv.com/sports', android: 'com.peacocktv.peacockandroid', host: 'www.peacocktv.com/sports', match: /^(Peacock|NBC|USA( Network)?)$/i },
+  nbc:       { label: 'NBC', short: 'NBC', web: 'https://www.nbc.com/live', android: 'com.nbcuni.nbc', host: 'www.nbc.com/live', match: /^NBC$/i },
+  fox:       { label: 'FOX Sports', short: 'FOX', web: 'https://www.foxsports.com/live', android: 'com.foxsports.android', host: 'www.foxsports.com/live', match: /^(FOX|FS1|FS2|FOX Sports ?[12]?|FOX Deportes|FOX One|BTN|Big Ten Network)$/i },
+  paramount: { label: 'Paramount+', short: 'Paramount+', web: 'https://www.paramountplus.com/live-tv/', android: 'com.cbs.app', host: 'www.paramountplus.com/live-tv/', match: /^(CBS|Paramount\+|CBSSN|CBS Sports Network)$/i },
+  max:       { label: 'Max', short: 'Max', web: 'https://play.max.com', android: 'com.wbd.stream', host: 'play.max.com/', match: /^(TNT|TBS|truTV|Max|HBO Max|TNT Sports)$/i },
+  prime:     { label: 'Prime Video', short: 'Prime', web: 'https://www.amazon.com/primevideo', webBy: { basketball: 'https://www.amazon.com/nba', football: 'https://www.amazon.com/tnf' }, android: 'com.amazon.avod.thirdpartyclient', host: 'app.primevideo.com/', match: /^(Prime Video|Amazon Prime Video|Amazon|Prime)$/i },
+  netflix:   { label: 'Netflix', short: 'Netflix', web: 'https://www.netflix.com', android: 'com.netflix.mediaclient', host: 'www.netflix.com/', match: /^Netflix$/i },
+  appletv:   { label: 'Apple TV', short: 'Apple TV', web: 'https://tv.apple.com', match: /^Apple TV\+?$/i },
+  nba:       { label: 'NBA app · League Pass', short: 'NBA app', web: 'https://www.nba.com/watch', android: 'com.nbaimd.gametime.nba2011', host: 'www.nba.com/watch', match: /^(NBA League Pass|NBA ?TV)$/i },
+  wnba:      { label: 'WNBA app · League Pass', short: 'WNBA app', web: 'https://www.wnba.com/watch', match: /^(WNBA League Pass|ION)$/i },
+  nfl:       { label: 'NFL+', short: 'NFL+', web: 'https://www.nfl.com/plus/', android: 'com.gotv.nflgamecenter.us.lite', host: 'www.nfl.com/plus/', match: /^(NFL Network|NFLN|NFL\+|NFL RedZone)$/i },
+  youtube:   { label: 'YouTube · Sunday Ticket', short: 'YouTube', web: 'https://www.youtube.com', android: 'com.google.android.youtube', host: 'www.youtube.com/', match: /^(YouTube|NFL Sunday Ticket)$/i },
+  mlb:       { label: 'MLB.TV', short: 'MLB.TV', web: 'https://www.mlb.com/tv', android: 'com.bamnetworks.mobile.android.gameday.atbat', host: 'www.mlb.com/tv', match: /^(MLB\.TV|MLB Network|MLBN)$/i },
+  cw:        { label: 'The CW', short: 'CW', web: 'https://www.cwtv.com/live', match: /^(The CW|CW)$/i },
+  ion:       { label: 'ION', short: 'ION', web: 'https://iontelevision.com', match: /^ION$/i },
+  regional:  { label: 'Regional network', short: 'Regional', web: '', match: NAT.regional }
+};
+/* the regional networks' own sites, when the viewer has no bundle that carries them */
+const REGIONAL = [[/FanDuel Sports|FDSN/i, 'FanDuel Sports Network', 'https://www.fanduelsportsnetwork.com'], [/^YES/i, 'YES Network', 'https://www.yesnetwork.com'], [/^MSG/i, 'MSG Networks', 'https://www.msgnetworks.com'], [/^NESN/i, 'NESN', 'https://nesn.com'], [/^SNY$/i, 'SNY', 'https://sny.tv'], [/Marquee/i, 'Marquee Sports Network', 'https://www.marqueesportsnetwork.com'], [/Spectrum SportsNet/i, 'Spectrum SportsNet', 'https://www.spectrumsportsnet.com'], [/^NBCS|^NBC Sports/i, 'NBC Sports regional', 'https://www.nbcsports.com/regional'], [/ROOT Sports/i, 'ROOT Sports', 'https://www.rootsports.com'], [/Monumental/i, 'Monumental Sports Network', 'https://monumentalsportsnetwork.com'], [/Altitude/i, 'Altitude', 'https://www.altitudesports.net'], [/Space City/i, 'Space City Home Network', 'https://spacecityhn.com'], [/CHSN|Chicago Sports Network/i, 'Chicago Sports Network', 'https://chsn.com'], [/Gulf Coast Sports/i, 'Gulf Coast Sports', 'https://www.gulfcoastsports.com']];
+/* the chooser: what the viewer can say they have */
+const SERVICE_GROUPS = [
+  { label: 'Live TV', ids: ['sling', 'youtubetv', 'hululive', 'fubo', 'directv'] },
+  { label: 'Streaming', ids: ['espn', 'prime', 'peacock', 'paramount', 'max', 'netflix', 'appletv'] },
+  { label: 'League passes', ids: ['nba', 'wnba', 'nfl', 'youtube', 'mlb'] }
 ];
-/* one broadcaster name → { label, url } or null (radio, unknown regional channels) */
-function watchLink(name, L) {
-  const n = String(name || '').trim(); if (!n || /radio|sirius/i.test(n)) return null;
-  for (const [re, label, url, bySport] of WATCH) if (re.test(n)) return { label, url: (bySport && L && bySport[L.sport]) || url, net: n };
-  return null;
+const myServices = () => (store.get('watch', []) || []).filter(id => SERVICES[id]);
+const IS_ANDROID = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent || '');
+/* the href for a service: on Android an intent that opens the app (falls back to the web page); elsewhere the web page */
+function serviceHref(id, L, webOverride) {
+  const s = SERVICES[id]; if (!s) return webOverride || '';
+  const web = webOverride || (s.webBy && L && s.webBy[L.sport]) || s.web;
+  if (IS_ANDROID && s.android && s.host) return `intent://${s.host}#Intent;scheme=https;package=${s.android};S.browser_fallback_url=${encodeURIComponent(web)};end`;
+  return web;
 }
-/* every distinct service a game is on, national first */
-function watchFor(g, L) { const out = []; [...(g.tv.national || []), ...(g.tv.local || [])].forEach(n => { const w = watchLink(n, L); if (w && !out.some(o => o.url === w.url)) out.push(w); }); return out; }
+/* a game's watch options: the viewer's own services that carry it (their order), then the channel's own app */
+function watchFor(g, L) {
+  if (!g || !g.tv) return [];
+  const names = [...(g.tv.national || []), ...(g.tv.local || [])].filter(n => n && !/radio|sirius/i.test(n));
+  if (!names.length) return [];
+  const out = []; const push = (id, net, web) => { if (!out.some(o => o.id === id)) out.push({ id, net, bundle: !!SERVICES[id].bundle, label: SERVICES[id].label, short: SERVICES[id].short, url: web || (SERVICES[id].webBy && SERVICES[id].webBy[L.sport]) || SERVICES[id].web, href: serviceHref(id, L, web), mine: myServices().includes(id) }); };
+  myServices().forEach(id => { const s = SERVICES[id]; const net = names.find(n => (s.bundle ? s.channels : s.match).test(n)); if (net) push(id, net); });
+  names.forEach(n => { for (const [id, s] of Object.entries(SERVICES)) { if (s.bundle || !s.match.test(n)) continue; if (id === 'regional') { const r = REGIONAL.find(x => x[0].test(n)); if (r) { if (!out.some(o => o.url === r[2])) out.push({ id: 'regional', net: n, label: r[1], short: r[1], url: r[2], href: r[2], mine: false }); } } else push(id, n); break; } });
+  return out.filter(o => o.href);
+}
+const watchLink = (name, L) => watchFor({ tv: { national: [name], local: [] } }, L)[0] || null;
 
 /* ---------- shared state ---------- */
 const S = { today: {}, todayYmd: null, lastOk: 0, err: false, timer: null, route: null, open: new Set(), prevScores: {}, league: 'nba' };
 ORDER.forEach(k => S.today[k] = []);
 const allToday = () => ORDER.flatMap(k => S.today[k]);
 
-Object.assign(HW, { watchLink, watchFor, sportOf, fracLeft, statCategory, STAT_CATS, esc, j, jSoft, cache, todayCT, addDays, compact, expand, ymdOf, dayLabel, relDay, tip, dateShort, timeCT, ago, pct, sign, ordinal, hx, darkOf, Phi, store, API, API2, WEB, logoUrl, seasonYear, favs,
+Object.assign(HW, { watchLink, watchFor, SERVICES, SERVICE_GROUPS, myServices, serviceHref, IS_ANDROID, sportOf, fracLeft, statCategory, STAT_CATS, esc, j, jSoft, cache, todayCT, addDays, compact, expand, ymdOf, dayLabel, relDay, tip, dateShort, timeCT, ago, pct, sign, ordinal, hx, darkOf, Phi, store, API, API2, WEB, logoUrl, seasonYear, favs,
   parseEvent, isLive, isFav, isRanked, order, interest, scoreboard, standings, priorStandings, rankings, ratings, record, params, injuries, forecast, forecastCtx, leaguePlayers, S, allToday });
 })();
