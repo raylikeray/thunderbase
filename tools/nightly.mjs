@@ -2,7 +2,6 @@
 //   node tools/nightly.mjs ratings   → data/<league>/{ratings,record,state}.json (margin Elo + forecast record vs ESPN BPI)
 //   node tools/nightly.mjs tune      → data/<league>/params.json (re-fits home court, rest, spread, rating speed and a calibration layer
 //                                      by replaying the season; the ratings are rebuilt with the winning mix)
-//   node tools/nightly.mjs context   → ai/context-<date>.json (featured games for the daily AI reads) + grades yesterday's reads into ai/record.json
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 const { LEAGUES, ORDER, ESPN, TZ } = createRequire(import.meta.url)('../js/config.js');
@@ -202,75 +201,4 @@ async function runTune() {
   }
 }
 
-/* ---------- AI self-grading ---------- */
-async function gradeReads(today) {
-  const yday = addDays(today, -1);
-  const reads = readJson(`ai/${yday}.json`, null);
-  const rec = readJson('ai/record.json', { games: [] });
-  const done = new Set(rec.games.map(g => `${g.date}|${g.lk}:${g.id}`));
-  const ctxY = readJson(`ai/context-${yday}.json`, null); const ctxBy = {}; ((ctxY && ctxY.games) || []).forEach(g => ctxBy[g.key] = g);
-  let graded = 0;
-  if (reads && reads.games) {
-    const byLk = {}; Object.keys(reads.games).forEach(k => { const [lk, id] = k.split(':'); if (LEAGUES[lk]) (byLk[lk] ||= []).push(id); });
-    for (const lk of Object.keys(byLk)) {
-      const L = LEAGUES[lk]; let games; try { games = await scoreboard(L, yday); } catch { continue; }
-      for (const id of byLk[lk]) {
-        if (done.has(`${yday}|${lk}:${id}`)) continue;
-        const g = games.find(x => x.id === id); const r = reads.games[`${lk}:${id}`]; if (!g || g.state !== 'post' || !r) continue;
-        const pick = String(r.pick || '').trim(); if (!pick || /^(none|pass|no lean|toss-?up)$/i.test(pick)) continue;
-        const norm = s => String(s || '').toLowerCase();
-        const side = [g.home, g.away].find(s => norm(pick) === norm(s.abbr) || norm(pick).includes(norm(s.abbr)) || norm(pick).includes(norm(s.short)) || norm(pick).includes(norm(s.name)));
-        if (!side) continue;
-        const winner = g.home.score > g.away.score ? g.home : g.away;
-        const c = ctxBy[`${lk}:${id}`]; const modelPick = c ? (c.modelHomeWinPct >= 50 ? g.home : g.away) : null;
-        rec.games.push({ date: yday, lk, id, game: `${g.away.abbr} at ${g.home.abbr}`, pick: side.abbr, confidence: (r.confidence || '').toLowerCase() || null, hit: side.id === winner.id, final: `${g.away.score}-${g.home.score}`, modelPick: modelPick ? modelPick.abbr : null, modelHit: modelPick ? modelPick.id === winner.id : null, modelPct: c ? c.modelHomeWinPct : null, headline: r.headline || '' });
-        graded++;
-      }
-    }
-  }
-  rec.games = rec.games.slice(-2000);
-  const agg = list => ({ n: list.length, hit: list.filter(g => g.hit).length });
-  const since7 = addDays(today, -7);
-  const byLeague = {}; ORDER.forEach(lk => { const l = rec.games.filter(g => g.lk === lk); if (l.length) byLeague[lk] = { ...agg(l), last7: agg(l.filter(g => g.date >= since7)) }; });
-  const byConfidence = {}; ['high', 'medium', 'low'].forEach(c => { const l = rec.games.filter(g => g.confidence === c); if (l.length) byConfidence[c] = agg(l); });
-  const dis = rec.games.filter(g => g.modelPick && g.modelPick !== g.pick);
-  const out = { generated: new Date().toISOString(), ...agg(rec.games), last7: agg(rec.games.filter(g => g.date >= since7)), byLeague, byConfidence, vsModel: dis.length ? { n: dis.length, aiHit: dis.filter(g => g.hit).length, modelHit: dis.filter(g => g.modelHit).length } : null, recent: [...rec.games].reverse().slice(0, 30), games: rec.games };
-  writeJson('ai/record.json', out);
-  console.log(`ai/record.json: graded ${graded} from ${yday}; ${out.hit} of ${out.n} all-time`);
-  return out;
-}
-
-/* ---------- AI context ---------- */
-async function runContext() {
-  const today = todayCT();
-  let graded = null; try { graded = await gradeReads(today); } catch (e) { console.log('grading failed', e.message); }
-  const featured = [];
-  for (const lk of ORDER) {
-    const L = LEAGUES[lk];
-    let games; try { games = (await scoreboard(L, today)).filter(g => g.state === 'pre'); } catch { continue; }
-    if (!games.length) continue;
-    const [cur, rk, rt, inj, yday] = await Promise.all([standings(L), rankings(L), Promise.resolve(readJson(`data/${lk}/ratings.json`, null)), L.hasInjuries ? soft(`${API(L)}/injuries`) : null, soft(`${API(L)}/scoreboard?dates=${compact(addDays(today, -1))}${L.sbParams}`)]);
-    const b2b = new Set(((yday && yday.events) || []).flatMap(e => e.competitions[0].competitors.map(c => String(c.team.id))));
-    const injBy = {}; ((inj && inj.injuries) || []).forEach(t => (t.injuries || []).forEach(x => { const ab = x.athlete && x.athlete.team && String(x.athlete.team.id); if (ab) (injBy[ab] ||= []).push({ player: x.athlete.displayName, pos: x.athlete.position && x.athlete.position.abbreviation, status: x.status, note: (x.shortComment || '').slice(0, 200) }); }));
-    const st = { elo: (rt && rt.teams) || {} }; const P = paramsOf(L);
-    const score = g => { let s = 0; const fav = id => L.favs.includes(id); if (fav(g.home.id) || fav(g.away.id)) s += 100; s += ({ nba: 50, nfl: 60, mlb: 30, wnba: 30, ncaaf: 15, ncaam: 10, ncaaw: 5, ncaab: 0 })[lk] || 0; if (/playoff|world series|championship|bowl|final/i.test(g.note || '')) s += 40; if (g.home.rank && g.away.rank) s += 40 + (50 - g.home.rank - g.away.rank); else if (g.home.rank || g.away.rank) { const r = g.home.rank || g.away.rank; s += lk === 'ncaaw' && r <= 10 ? 25 : 10; } return s; };
-    for (const g of games) {
-      const f = pregame(L, st, g, b2b, P);
-      const team = s => ({ homeAway: s === g.home ? 'home' : 'away', abbr: s.abbr, name: s.name, record: s.rec, apRank: s.rank, elo: st.elo[s.id] ? Math.round(st.elo[s.id].elo) : null, standing: cur[s.id] ? { conference: cur[s.id].group, record: `${cur[s.id].w}-${cur[s.id].l}`, confRecord: cur[s.id].conf, ppg: cur[s.id].ppg, oppPpg: cur[s.id].opp, margin: cur[s.id].diff, streak: cur[s.id].streak, last10: cur[s.id].l10, home: cur[s.id].home, road: cur[s.id].road } : null, playedYesterday: b2b.has(s.id), seasonLeaders: s.leaders.map(l => `${l.name}: ${l.who} ${l.val}`), injuries: injBy[s.id] || [] });
-      featured.push({ league: lk, leagueLabel: L.label, id: g.id, key: `${lk}:${g.id}`, name: g.name, tipCT: new Date(g.date).toLocaleString('en-US', { timeZone: TZ, hour: 'numeric', minute: '2-digit' }), venue: g.venue, neutralSite: g.neutral, tv: g.tv, note: g.note, modelHomeWinPct: Math.round(f.p * 100), modelHomeMargin: +f.margin.toFixed(1), interest: score(g), teams: [team(g.away), team(g.home)] });
-    }
-  }
-  featured.sort((a, b) => b.interest - a.interest);
-  const pick = featured.slice(0, 15);
-  let yourRecord = null;
-  if (graded && graded.n) {
-    const yday = addDays(today, -1);
-    const y = graded.games.filter(g => g.date === yday);
-    const misses = [...graded.games].reverse().filter(g => !g.hit).slice(0, 8);
-    yourRecord = { note: 'Your own past reads, graded against results. Use them: notice where you have been over- or under-confident, which leagues you read well, and whether disagreeing with the model has paid off.', allTime: `${graded.hit} of ${graded.n} leans right`, last7Days: `${graded.last7.hit} of ${graded.last7.n}`, byLeague: Object.fromEntries(Object.entries(graded.byLeague).map(([k, v]) => [k, `${v.hit} of ${v.n}`])), byConfidence: Object.fromEntries(Object.entries(graded.byConfidence).map(([k, v]) => [k, `${v.hit} of ${v.n}`])), whenYouDisagreedWithTheModel: graded.vsModel ? `you ${graded.vsModel.aiHit}, model ${graded.vsModel.modelHit}, of ${graded.vsModel.n}` : 'no disagreements yet', yesterday: y.map(g => ({ game: g.game, league: g.lk, yourLean: g.pick, confidence: g.confidence, final: g.final, result: g.hit ? 'hit' : 'miss', yourHeadline: g.headline })), recentMisses: misses.map(g => ({ date: g.date, game: g.game, league: g.lk, yourLean: g.pick, confidence: g.confidence, final: g.final, yourHeadline: g.headline })) };
-  }
-  writeJson(`ai/context-${today}.json`, { date: today, built: new Date().toISOString(), totalGamesToday: featured.length, yourRecord, games: pick });
-  console.log(`ai/context-${today}.json: ${pick.length} of ${featured.length} games`);
-}
-
-if (mode === 'context') await runContext(); else if (mode === 'tune') await runTune(); else await runRatings();
+if (mode === 'tune') await runTune(); else await runRatings();

@@ -158,9 +158,6 @@ async function rankings(L) { if (!L.hasRankings) return null; const d = await jS
 async function ratings(L) { return jSoft(`data/${L.key}/ratings.json?d=${todayCT()}`, 900000); }
 async function record(L) { return jSoft(`data/${L.key}/record.json?d=${todayCT()}`, 900000); }
 async function params(L) { return jSoft(`data/${L.key}/params.json?d=${todayCT()}`, 900000); }
-async function aiRecord() { return jSoft(`ai/record.json?d=${todayCT()}`, 900000); }
-async function aiFor(ymd) { return jSoft(`ai/${ymd}.json?d=${ymd}`, 600000); }
-function aiEntry(doc, g) { if (!doc || !doc.games) return null; const e = doc.games[`${g.lk}:${g.id}`] || doc.games[g.id]; if (!e) return null; return { ...e, generatedLabel: doc.generated ? new Date(doc.generated).toLocaleString('en-US', { timeZone: TZ, weekday: 'short', hour: 'numeric', minute: '2-digit' }) + ' CT' : null }; }
 async function injuries(L) { if (!L.hasInjuries) return null; const d = await jSoft(`${API(L)}/injuries`, 600000); if (!d || !d.injuries) return null; const byTeam = {}; d.injuries.forEach(t => { const id = String(t.id || (t.injuries && t.injuries[0] && t.injuries[0].athlete && t.injuries[0].athlete.team && t.injuries[0].athlete.team.id) || ''); byTeam[id] = { name: t.displayName, list: t.injuries || [] }; }); return { teams: d.injuries, byTeam }; }
 
 /* ---------- forecast model ----------
@@ -337,5 +334,5 @@ ORDER.forEach(k => S.today[k] = []);
 const allToday = () => ORDER.flatMap(k => S.today[k]);
 
 Object.assign(HW, { watchLink, watchFor, sportOf, fracLeft, statCategory, STAT_CATS, esc, j, jSoft, cache, todayCT, addDays, compact, expand, ymdOf, dayLabel, relDay, tip, dateShort, timeCT, ago, pct, sign, ordinal, hx, darkOf, Phi, store, API, API2, WEB, logoUrl, seasonYear, favs,
-  parseEvent, isLive, isFav, isRanked, order, interest, scoreboard, standings, priorStandings, rankings, ratings, record, params, aiRecord, aiFor, aiEntry, injuries, forecast, forecastCtx, leaguePlayers, S, allToday });
+  parseEvent, isLive, isFav, isRanked, order, interest, scoreboard, standings, priorStandings, rankings, ratings, record, params, injuries, forecast, forecastCtx, leaguePlayers, S, allToday });
 })();
