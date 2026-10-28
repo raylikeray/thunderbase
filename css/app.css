@@ -67,6 +67,8 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 .sub-in .d{margin-left:auto;font:600 11.5px/1 var(--ui);color:var(--on-hdr-2);white-space:nowrap;padding-left:12px}
 #freshShort{display:none}
 @media (max-width:760px){
+  .bar{position:static}
+  html{scroll-padding-top:56px}
   .bar-in{height:52px}
   .brand{padding-right:10px}
   .brand span{display:none}
@@ -179,8 +181,8 @@ table.t{width:100%;border-collapse:collapse;font:500 12.5px/1.3 var(--ui)}
 .fcr a{text-decoration:none}
 .fcr a:hover{text-decoration:underline}
 .fcr small{display:block;font:500 11px/1.3 var(--ui);color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.fcr .bar{height:8px;background:var(--line);border-radius:2px;overflow:hidden;display:flex}
-.fcr .bar i{display:block;height:100%}
+.fcr .pb{height:8px;background:var(--line);border-radius:2px;overflow:hidden;display:flex}
+.fcr .pb i{display:block;height:100%}
 .fcr .pc{font:800 12px/1 var(--cond);text-align:right;margin-top:3px;color:var(--ink-2)}
 .fcr.fav a{color:var(--link)}
 
@@ -338,7 +340,7 @@ table.t{width:100%;border-collapse:collapse;font:500 12.5px/1.3 var(--ui)}
 .tabs a.on,.tabs button.on{color:#fff;background:var(--hdr);clip-path:polygon(6px 0,100% 0,calc(100% - 6px) 100%,0 100%)}
 .jump{display:none}
 @media (max-width:760px){
-  .jump{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;position:sticky;top:calc(92px + env(safe-area-inset-top,0px));z-index:40;background:var(--bg);margin:0 calc(-1 * var(--gut-r)) 10px calc(-1 * var(--gut));padding:8px var(--gut-r) 8px var(--gut)}
+  .jump{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;position:sticky;top:env(safe-area-inset-top,0px);z-index:40;background:var(--bg);box-shadow:0 6px 12px -10px rgba(15,20,32,.35);margin:0 calc(-1 * var(--gut-r)) 10px calc(-1 * var(--gut));padding:8px var(--gut-r) 8px var(--gut)}
   .jump::-webkit-scrollbar{display:none}
   .jump a{font:800 11px/1 var(--cond);letter-spacing:.08em;text-transform:uppercase;padding:8px 10px;background:var(--surface);border:1px solid var(--line);white-space:nowrap;color:var(--ink-2);text-decoration:none}
   .jump a.on{background:var(--hdr);color:#fff;border-color:var(--hdr)}

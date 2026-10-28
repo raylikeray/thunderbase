@@ -92,9 +92,14 @@ async function route() {
   } catch (e) { console.error(e); if (seq === navSeq) $main.innerHTML = HW.render.failMsg('this page'); }
   const names = { center: '', scores: 'Scores', game: 'Game', standings: 'Standings', rankings: 'Rankings', teams: 'Teams', team: 'Team', players: 'Players', player: 'Player', forecasts: 'Forecasts', injuries: 'Injuries', news: 'News', record: 'The record' };
   document.title = r.name === 'center' ? `${LEAGUES[r.lk].label} · Hardwood` : r.name === 'record' ? 'The record · Hardwood' : `${LEAGUES[r.lk].label} ${names[r.name] || ''} · Hardwood`;
-  // in-page jump bar: highlight the module in view
+  // in-page jump bar: highlight the module at the top of the screen
   const jump = document.querySelector('.jump');
-  if (jump && 'IntersectionObserver' in window) { const links = [...jump.querySelectorAll('a')]; const io = new IntersectionObserver(es => { es.forEach(en => { if (en.isIntersecting) links.forEach(a => a.classList.toggle('on', a.getAttribute('href') === '#' + en.target.id)); }); }, { rootMargin: '-120px 0px -60% 0px' }); links.forEach(a => { const el = document.getElementById(a.getAttribute('href').slice(1)); el && io.observe(el); }); }
+  if (jump) {
+    const links = [...jump.querySelectorAll('a')]; const els = links.map(a => document.getElementById(a.getAttribute('href').slice(1)));
+    let raf = 0; const paint = () => { raf = 0; let best = 0; els.forEach((el, i) => { if (el && el.getBoundingClientRect().top <= 72) best = i; }); links.forEach((a, i) => a.classList.toggle('on', i === best)); const on = links[best]; if (on && on.scrollIntoView) try { on.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch { } };
+    const onScroll = () => { if (!raf) raf = requestAnimationFrame(paint); };
+    window.removeEventListener('scroll', S.jumpScroll); S.jumpScroll = onScroll; window.addEventListener('scroll', onScroll, { passive: true }); paint();
+  } else if (S.jumpScroll) { window.removeEventListener('scroll', S.jumpScroll); S.jumpScroll = null; }
 }
 window.addEventListener('hashchange', () => {
   const h = location.hash;
