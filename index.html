@@ -3,39 +3,39 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ThunderBase</title>
-<meta name="description" content="Ray's NBA home base: live scores, box scores, standings, player stats, forecasts, injuries and news, built around the Thunder.">
+<title>Hardwood</title>
+<meta name="description" content="Hardwood: live scores, box scores, standings, player stats, rankings, forecasts and news for the NBA, WNBA and college basketball, in one place.">
 <meta name="theme-color" content="#002D62">
-<meta property="og:title" content="ThunderBase">
-<meta property="og:description" content="Live NBA scores, box scores, standings, forecasts and the wire — built around the Thunder.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23002D62'/%3E%3Ccircle cx='32' cy='32' r='19' fill='none' stroke='%23FDBB30' stroke-width='4'/%3E%3Cpath d='M13 32h38M32 13v38' stroke='%23FDBB30' stroke-width='3'/%3E%3Cpath d='M36 8 24 34h9l-5 22 14-28h-9z' fill='%23EF3B24'/%3E%3C/svg%3E">
+<meta property="og:title" content="Hardwood">
+<meta property="og:description" content="Everything basketball, live: NBA, WNBA, men's and women's college. Scores, box scores, standings, forecasts and the wire.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23d9a86c'/%3E%3Cpath d='M0 20h64M0 44h64' stroke='%23c48f53' stroke-width='2'/%3E%3Crect x='18' y='0' width='28' height='26' fill='%23007AC1'/%3E%3Cpath d='M18 26a14 14 0 0 0 28 0' fill='none' stroke='%23fff' stroke-width='3'/%3E%3Cpath d='M18 0v26h28V0' fill='none' stroke='%23fff' stroke-width='3'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://site.api.espn.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/app.css?v=4">
+<link rel="stylesheet" href="css/app.css?v=5">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
 <header class="bar">
   <div class="bar-in">
-    <a class="brand" href="#tonight" aria-label="ThunderBase home">Thunder<span>Base</span></a>
-    <nav class="nav" aria-label="Sections">
-      <a href="#tonight" data-nav="tonight">Tonight</a>
-      <a href="#games" data-nav="games">Games</a>
-      <a href="#standings" data-nav="standings">Standings</a>
-      <a href="#teams" data-nav="teams">Teams</a>
-      <a href="#players" data-nav="players">Players</a>
-      <a href="#forecasts" data-nav="forecasts">Forecasts</a>
-      <a href="#wire" data-nav="wire">Wire</a>
+    <a class="brand" href="#home" aria-label="Hardwood home">Hard<span>wood</span></a>
+    <nav class="nav" aria-label="Leagues">
+      <a href="#home" data-nav="home">Home</a>
+      <a href="#nba" data-nav="nba">NBA</a>
+      <a href="#ncaam" data-nav="ncaam">Men's</a>
+      <a href="#ncaaw" data-nav="ncaaw">Women's</a>
+      <a href="#wnba" data-nav="wnba">WNBA</a>
+      <a href="#record" data-nav="record">Record</a>
     </nav>
     <div class="fresh" id="fresh" role="status" aria-live="polite"><span class="fresh-dot"></span><span id="freshText">Loading…</span></div>
   </div>
+  <nav class="subnav" id="subnav" aria-label="Sections" hidden></nav>
 </header>
 
 <div class="floor" aria-hidden="true"></div>
 
-<section class="strip-wrap" aria-label="Today's games">
+<section class="strip-wrap" id="stripWrap" aria-label="Today's games">
   <div class="strip-head">
     <span class="strip-date" id="stripDate"></span>
     <span class="strip-count" id="stripCount"></span>
@@ -47,11 +47,14 @@
 
 <footer class="foot">
   <div class="foot-in">
-    <p>ThunderBase is a personal fan project. Scores, stats, injuries and news come live from ESPN's public data feeds; logos and names belong to the NBA and its teams. Forecasts are estimates from a simple rating model, not betting advice.</p>
+    <p>Hardwood is a personal fan project. Scores, stats, rankings, injuries and news come live from ESPN's public data feeds; names and logos belong to the leagues and their teams. Forecasts are estimates from Hardwood's own rating model, and AI reads are written once a day by Claude. Neither is betting advice. <a href="#record">See how the forecasts have done.</a></p>
     <p>All times Central.</p>
   </div>
 </footer>
 
-<script src="js/app.js?v=4"></script>
+<script src="js/config.js?v=5"></script>
+<script src="js/core.js?v=5"></script>
+<script src="js/views.js?v=5"></script>
+<script src="js/app.js?v=5"></script>
 </body>
 </html>

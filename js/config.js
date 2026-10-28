@@ -1,0 +1,45 @@
+/* Hardwood — league configuration. Shared by the site (browser) and tools/nightly.mjs (Node). */
+(function (root) {
+  'use strict';
+  const LEAGUES = {
+    nba: {
+      key: 'nba', path: 'nba', label: 'NBA', short: 'NBA', noun: 'NBA',
+      sbParams: '&limit=50', standingsMode: 'conference', hasRankings: false, hasInjuries: true, hasTransactions: true,
+      minutes: 48, sd: 12, hca: 2.4, b2b: 1.8, k: 20, eloPerPoint: 28,
+      seasonStart: '2026-10-20', playoffLine: [6, 10],
+      favs: ['25'],                                  // Oklahoma City Thunder
+      home: '25'
+    },
+    wnba: {
+      key: 'wnba', path: 'wnba', label: 'WNBA', short: 'WNBA', noun: 'WNBA',
+      sbParams: '&limit=50', standingsMode: 'league', hasRankings: false, hasInjuries: true, hasTransactions: true,
+      minutes: 40, sd: 11, hca: 2.0, b2b: 1.5, k: 22, eloPerPoint: 26,
+      seasonStart: '2026-05-01', playoffLine: [8],
+      favs: [], home: null
+    },
+    ncaam: {
+      key: 'ncaam', path: 'mens-college-basketball', label: "Men's College", short: 'NCAA M', noun: "men's college",
+      sbParams: '&groups=50&limit=400', standingsMode: 'conferences', hasRankings: true, hasInjuries: false, hasTransactions: false,
+      minutes: 40, sd: 11, hca: 3.2, b2b: 0.8, k: 24, eloPerPoint: 26,
+      seasonStart: '2026-11-01', playoffLine: [],
+      favs: ['150', '2305', '41'],                   // Duke, Kansas, UConn
+      home: null
+    },
+    ncaaw: {
+      key: 'ncaaw', path: 'womens-college-basketball', label: "Women's College", short: 'NCAA W', noun: "women's college",
+      sbParams: '&groups=50&limit=400', standingsMode: 'conferences', hasRankings: true, hasInjuries: false, hasTransactions: false,
+      minutes: 40, sd: 12, hca: 3.4, b2b: 0.8, k: 24, eloPerPoint: 26,
+      seasonStart: '2026-11-01', playoffLine: [],
+      favs: ['41', '2579', '30', '26'],              // UConn, South Carolina, USC (JuJu Watkins), UCLA
+      home: null
+    }
+  };
+  const ORDER = ['nba', 'ncaam', 'ncaaw', 'wnba'];
+  const ESPN = {
+    site: 'https://site.api.espn.com/apis/site/v2/sports/basketball/',
+    v2: 'https://site.api.espn.com/apis/v2/sports/basketball/',
+    web: 'https://site.web.api.espn.com/apis/common/v3/sports/basketball/'
+  };
+  const out = { LEAGUES, ORDER, ESPN, TZ: 'America/Chicago', SITE: 'Hardwood' };
+  if (typeof module !== 'undefined' && module.exports) module.exports = out; else root.HW = Object.assign(root.HW || {}, out);
+})(typeof globalThis !== 'undefined' ? globalThis : this);

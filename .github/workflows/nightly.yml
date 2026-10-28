@@ -1,0 +1,25 @@
+name: Nightly ratings
+on:
+  schedule:
+    - cron: '20 10 * * *'   # 5:20 AM CDT / 4:20 AM CST, after the last West Coast final
+  workflow_dispatch:
+  push:
+    paths: ['tools/nightly.mjs', 'js/config.js', 'data/.refresh']
+permissions:
+  contents: write
+concurrency: { group: hardwood-data, cancel-in-progress: false }
+jobs:
+  ratings:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - run: node tools/nightly.mjs ratings
+      - run: |
+          git config user.name "hardwood-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/
+          git diff --cached --quiet || git commit -m "Ratings through $(TZ=America/Chicago date -d yesterday +%F)"
+          git pull --rebase && git push
