@@ -94,7 +94,7 @@ async function runRatings() {
     let n = 0, espnN = 0;
     for (let d = from; d <= yday; d = addDays(d, 1)) {
       let games; try { games = await scoreboard(L, d); } catch (e) { console.log(lk, d, 'scoreboard failed', e.message); break; }
-      const finals = games.filter(g => g.state === 'post' && g.home.score != null && g.away.score != null && !st.processed[g.id]);
+      const finals = games.filter(g => g.state === 'post' && g.home.score != null && g.away.score != null && !st.processed[g.id] && !/all-star|pro bowl|exhibition/i.test(g.name || ''));
       // pregame forecasts for the whole day first (ratings as they stood that morning), then update
       const pre = finals.map(g => ({ g, f: pregame(L, st, g, prev, P) }));
       let budget = d < addDays(yday, -45) ? 0 : L.standingsMode === 'conferences' ? 60 : 40;   // deep backfills (a league added mid-season) skip ESPN's pregame numbers
@@ -129,7 +129,8 @@ function writeRatings(L, st) {
   Object.keys(st.history).filter(d => d < addDays(today, -14)).forEach(d => delete st.history[d]);
   const back = Object.keys(st.history).filter(d => d <= addDays(today, -7)).sort().pop() || Object.keys(st.history).sort()[0];
   const old = back && back !== today ? st.history[back] : null;
-  const teams = {}; Object.entries(st.elo).forEach(([id, v]) => teams[id] = { elo: Math.round(v.elo * 10) / 10, gp: v.gp, name: v.name, short: v.short, abbr: v.abbr, prior: v.prior, d7: old && old[id] != null ? Math.round(v.elo - old[id]) : null });
+  // teams that never appeared in standings and barely played (All-Star squads) stay out of the published ratings
+  const teams = {}; Object.entries(st.elo).filter(([, v]) => !(v.prior === 'unrated' && v.gp <= 2)).forEach(([id, v]) => teams[id] = { elo: Math.round(v.elo * 10) / 10, gp: v.gp, name: v.name, short: v.short, abbr: v.abbr, prior: v.prior, d7: old && old[id] != null ? Math.round(v.elo - old[id]) : null });
   const P = paramsOf(L);
   writeJson(`data/${lk}/ratings.json`, { generated: new Date().toISOString(), season: L.seasonStart, teams, since: back && back !== today ? back : null, params: { hca: P.hca, b2b: P.b2b, sd: P.sd, k: P.k, eloPerPoint: L.eloPerPoint } });
   writeJson(`data/${lk}/record.json`, { generated: new Date().toISOString(), games: st.record });
