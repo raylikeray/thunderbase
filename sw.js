@@ -1,6 +1,6 @@
 /* Tipoff service worker: makes the site installable and keeps the shell available when the network is slow.
    Network first for everything on this origin, cache as a fallback. Live data from ESPN is never intercepted. */
-const V = 'tipoff-22';
+const V = 'tipoff-23';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './img/mark.svg', './img/icon-192.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(V).then(c => c.addAll(SHELL)).catch(() => { })); self.skipWaiting(); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== V).map(k => caches.delete(k)))).then(() => self.clients.claim())); });

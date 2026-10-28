@@ -5,14 +5,14 @@
    Bindings: KV (KV namespace). Variables: VAPID_PUBLIC, VAPID_PRIVATE_JWK (secret, JSON), VAPID_SUBJECT (mailto:…), ALLOWED_ORIGINS (comma list), SELF_URL (this worker's URL). */
 
 const LEAGUES = {
-  nba:   { path: 'nba', label: 'NBA', sb: '&limit=50', reg: 4, injuries: true, moves: true },
-  wnba:  { path: 'wnba', label: 'WNBA', sb: '&limit=50', reg: 4, injuries: true, moves: true },
-  ncaam: { path: 'mens-college-basketball', label: 'NCAA M', sb: '&groups=50&limit=400', reg: 2, injuries: false, moves: false },
-  ncaaw: { path: 'womens-college-basketball', label: 'NCAA W', sb: '&groups=50&limit=400', reg: 2, injuries: false, moves: false },
-  nfl:   { path: 'football/nfl', label: 'NFL', sb: '', reg: 4, injuries: true, moves: true, sport: 'football' },
-  ncaaf: { path: 'football/college-football', label: 'NCAA F', sb: '&groups=80&limit=200', reg: 4, injuries: false, moves: false, sport: 'football' },
-  mlb:   { path: 'baseball/mlb', label: 'MLB', sb: '', reg: 9, injuries: true, moves: true, sport: 'baseball' },
-  ncaab: { path: 'baseball/college-baseball', label: 'NCAA B', sb: '&groups=26&limit=200', reg: 9, injuries: false, moves: false, sport: 'baseball' }
+  nba:   { verb: 'tips', path: 'nba', label: 'NBA', sb: '&limit=50', reg: 4, injuries: true, moves: true },
+  wnba:  { verb: 'tips', path: 'wnba', label: 'WNBA', sb: '&limit=50', reg: 4, injuries: true, moves: true },
+  ncaam: { verb: 'tips', path: 'mens-college-basketball', label: 'NCAA M', sb: '&groups=50&limit=400', reg: 2, injuries: false, moves: false },
+  ncaaw: { verb: 'tips', path: 'womens-college-basketball', label: 'NCAA W', sb: '&groups=50&limit=400', reg: 2, injuries: false, moves: false },
+  nfl:   { verb: 'kicks off', path: 'football/nfl', label: 'NFL', sb: '', reg: 4, injuries: true, moves: true, sport: 'football' },
+  ncaaf: { verb: 'kicks off', path: 'football/college-football', label: 'NCAA F', sb: '&groups=80&limit=200', reg: 4, injuries: false, moves: false, sport: 'football' },
+  mlb:   { verb: 'starts', path: 'baseball/mlb', label: 'MLB', sb: '', reg: 9, injuries: true, moves: true, sport: 'baseball' },
+  ncaab: { verb: 'starts', path: 'baseball/college-baseball', label: 'NCAA B', sb: '&groups=26&limit=200', reg: 9, injuries: false, moves: false, sport: 'baseball' }
 };
 const API = L => `https://site.api.espn.com/apis/site/v2/sports/${L.sport ? L.path : 'basketball/' + L.path}`;
 const TZ = 'America/Chicago';
@@ -104,7 +104,7 @@ async function runLeague(env, lk, subs) {
     const gk = `${lk}:${g.id}`; const url = `#${lk}/game/${g.id}`; const name = `${g.away.abbr} at ${g.home.abbr}`;
     const send = (kind, payload, dedupe) => once(env, dedupe, async () => { for (const tk of both) await deliver(env, subs, tk, kind, { ...payload, url, league: lk }); });
     const mins = (new Date(g.date) - now) / 60000;
-    if (g.state === 'pre' && mins > 0 && mins <= 30) await send('pre', { title: `${name} tips in ${Math.round(mins)} min`, body: `${tipCT(g.date)} CT${g.tv ? ' · ' + g.tv : ''}`, tag: `pre:${gk}` }, `${gk}:pre`);
+    if (g.state === 'pre' && mins > 0 && mins <= 30) await send('pre', { title: `${name} ${L.verb || 'starts'} in ${Math.round(mins)} min`, body: `${tipCT(g.date)} CT${g.tv ? ' · ' + g.tv : ''}`, tag: `pre:${gk}` }, `${gk}:pre`);
     if (g.state === 'in') {
       const snap = await env.KV.get('st:' + gk, 'json') || {};
       const hs = g.home.score || 0, as = g.away.score || 0; const leader = hs === as ? 'tie' : hs > as ? 'home' : 'away';
