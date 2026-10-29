@@ -154,7 +154,7 @@
     const names = [...teams.filter(Boolean).flatMap(t => [t.short, t.loc].filter(Boolean)), ...fp.map(p => p.name.split(' ').slice(-1)[0])].filter(n => n && n.length > 2);
     const hit = a => { const txt = `${a.headline || ''} ${a.description || ''}`; return names.some(n => txt.includes(n)); };
     const arts = news && news.articles ? news.articles.filter(a => a.headline && hit(a)).slice(0, 6) : [];
-    if (arts.length) parts.push(sec('News', 'your teams and players') + `<div class="rows">${arts.map(a => { const im = a.images && a.images[0] && a.images[0].url; const u = a.links && a.links.web && a.links.web.href; return `<a class="row" href="${esc(u || '#')}" target="_blank" rel="noopener">${im ? `<img class="thumb" src="${esc(im)}" alt="" loading="lazy">` : ''}<span class="t"><b style="white-space:normal;font-size:15px;line-height:1.3">${esc(a.headline)}</b><span>${esc([a.byline, a.published ? ago(a.published) : ''].filter(Boolean).join(', '))}</span></span></a>`; }).join('')}</div>`);
+    if (arts.length) parts.push(sec('News', 'your teams and players') + `<div class="rows">${arts.map(a => HW.v5.newsRow(lk, a)).join('')}</div>`);
 
     $main.innerHTML = parts.join('');
   }
@@ -244,7 +244,7 @@
 
     // latest stories and clips
     const items = ov && ov.news ? ov.news.filter(n => n.headline).slice(0, 8) : [];
-    const latest = items.length ? sec('Latest') + `<div class="media">${items.map(n => { const im = n.images && n.images[0] && n.images[0].url; const u = n.links && n.links.web && n.links.web.href; const vid = /video|media/i.test(n.type || ''); return `<a class="clip" href="${esc(u || '#')}" target="_blank" rel="noopener"><div class="th">${im ? `<img src="${esc(im)}" alt="" loading="lazy">` : ''}${vid ? `<i><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l12-7.5z"/></svg></i>` : ''}</div><b>${esc(n.headline)}</b><span>${esc([n.byline, n.published ? ago(n.published) : ''].filter(Boolean).join(', '))}</span></a>`; }).join('')}</div>` : '';
+    const latest = items.length ? sec('Latest') + `<div class="rows">${items.map(n => HW.v5.newsRow(lk, n)).join('')}</div>` : '';
 
     // career, by season
     let careerT = '';
@@ -295,10 +295,6 @@
     $main.addEventListener('rivl:follow', paint);
   }
 
-  /* ================= placeholders for the screens still to come ================= */
-  const soon = (title, what) => async () => { $main.innerHTML = `<div class="page-h"><h1>${esc(title)}</h1></div>` + empty('Next step', `<p style="margin:6px 0 0">${esc(what)} is the next screen to approve. Home and the player profile are live now: tap a player on Home.</p>`); };
-
   HW.v5 = Object.assign(HW.v5 || {}, { home, scores, player, players, fplayers, teamInfo, teamsIndex, gameCard, heroCard,
-    standings: soon('Standings', 'Standings'), teams: soon('Teams', 'The teams list, where you pick the ones you follow'),
-    team: soon('Team', 'The team page'), game: soon('Game', 'The game page'), search: soon('Search', 'Search') });
+    _: { h: H, logo, headshot, chev, sec, empty, skeleton, href, safeF, gameCard, heroCard, teamInfo, teamsIndex, fplayers, starSvg, starLine, tvLabel, teamColor } });
 })();

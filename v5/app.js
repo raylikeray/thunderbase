@@ -15,7 +15,7 @@
   function route() {
     const h = (location.hash || '#home').slice(1);
     let m;
-    if ((m = h.match(/^(player|team|game)\/([a-z]+)\/([A-Za-z0-9]+)$/))) return { name: m[1], lk: lkOf(m[2]), args: [lkOf(m[2]), m[3]] };
+    if ((m = h.match(/^(player|team|game|article)\/([a-z]+)\/([A-Za-z0-9]+)$/))) return { name: m[1], lk: lkOf(m[2]), args: [lkOf(m[2]), m[3]] };
     if (LEAGUES[h]) { store.set('v5:lk', h); return { name: store.get('v5:screen', 'home'), lk: h, args: [h] }; }
     if (h === 'search') return { name: 'search', lk: lkOf(store.get('v5:lk', 'nba')), args: [] };
     const name = SCREENS.includes(h) ? h : 'home';
@@ -37,13 +37,13 @@
   /* ---------- render ---------- */
   let seq = 0, current = null;
   async function render() {
-    const r = route(); const my = ++seq; current = r;
+    const r = route(); const my = ++seq; current = r; V.refresh = null; closeSheet();
     const leagueScreen = SCREENS.includes(r.name);
     if (leagueScreen) store.set('v5:screen', r.name);
     if (r.name !== 'scores') store.set('v5:date', todayCT());
-    document.getElementById('top').hidden = !leagueScreen && r.name !== 'search';
+    document.getElementById('top').hidden = !leagueScreen;
     paintPills(r.lk, leagueScreen);
-    paintTabs(leagueScreen ? r.name : (r.name === 'player' ? 'players' : r.name === 'team' ? 'teams' : r.name === 'game' ? 'scores' : ''));
+    paintTabs(leagueScreen ? r.name : (r.name === 'player' ? 'players' : r.name === 'team' ? 'teams' : r.name === 'game' ? 'scores' : r.name === 'article' ? 'home' : ''));
     document.title = leagueScreen ? `${TITLES[r.name]} · ${LEAGUES[r.lk].label} · RIVL` : 'RIVL';
     window.scrollTo(0, 0);
     try { await (V[r.name] || V.home)(...r.args); }
@@ -68,7 +68,8 @@
     $fresh.classList.toggle('is-live', anyLive); $fresh.classList.toggle('is-err', failed && !lastOk); $fresh.classList.toggle('is-stale', failed && !!lastOk); $fresh.title = anyLive ? 'Games in progress' : failed ? 'Feed slow, showing the last good data' : 'Up to date';
     if (SCREENS.includes((current || route()).name)) paintPills((current || route()).lk, true);
     if (anyLive && current && (current.name === 'home' || current.name === 'scores')) refreshCards();
-    pollT = setTimeout(poll, anyLive ? 25000 : 90000);
+    if (V.refresh) { try { await V.refresh(); } catch { } }
+    pollT = setTimeout(poll, anyLive || V.refresh ? 25000 : 90000);
   }
   /* swap live scores into the cards on screen without repainting the whole page */
   function refreshCards() {
@@ -117,9 +118,46 @@
       if (navigator.share) navigator.share({ title, url }).catch(() => { });
       else if (navigator.clipboard) navigator.clipboard.writeText(url).then(() => toast('Link copied')).catch(() => toast(url));
     }
-    if (a === 'updates') { e.preventDefault(); toast('Updates come in a later step'); }
+    if (a === 'updates') { e.preventDefault(); toast('Alerts come after launch'); }
+    if (a === 'fav') {
+      e.preventDefault();
+      const on = HW.favs.toggle(act.dataset.lk, act.dataset.id);
+      act.setAttribute('aria-pressed', String(on)); act.classList.toggle('on', on);
+      const star = on ? `<svg viewBox="0 0 24 24" fill="currentColor"><path d="m12 2.8 2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.7l-5.9 3.1 1.2-6.5L2.5 9.7l6.6-.9z"/></svg>` : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="m12 2.8 2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.7l-5.9 3.1 1.2-6.5L2.5 9.7l6.6-.9z"/></svg>`;
+      act.innerHTML = act.classList.contains('star') ? star : star + (on ? 'Following' : 'Follow');
+      toast(on ? `Following ${act.dataset.name || 'team'}` : `Unfollowed ${act.dataset.name || 'team'}`);
+      $main.dispatchEvent(new CustomEvent('rivl:fav'));
+    }
+    if (a === 'expand') { e.preventDefault(); $main.querySelectorAll(`[data-more="${act.dataset.more}"]`).forEach(el => { el.hidden = false; }); act.remove(); }
+    if (a === 'stab') { e.preventDefault(); store.set('v5:stab:' + (current ? current.lk : 'nba'), act.dataset.tab); render(); }
+    if (a === 'play') { e.preventDefault(); openSheet(act.dataset.vid); }
     if (a === 'date') { e.preventDefault(); store.set('v5:date', act.dataset.ymd); render(); }
   });
+
+  /* ---------- video sheet: ESPN's own clip files, played here; the ESPN page is the fallback ---------- */
+  const $sheet = document.getElementById('sheet');
+  function closeSheet() { if (!$sheet || $sheet.hidden) return; const v = $sheet.querySelector('video'); if (v) { v.pause(); v.removeAttribute('src'); v.innerHTML = ''; v.load(); } $sheet.hidden = true; document.body.classList.remove('noscroll'); }
+  function openSheet(vid) {
+    const v = S.videos && S.videos[vid]; if (!v) { toast('That clip is not available'); return; }
+    const L = v.links || {}; const src = L.source || {}; const web = L.web && L.web.href || (L.mobile && L.mobile.href) || '';
+    const files = [];
+    if (src.HLS && src.HLS.href) files.push([src.HLS.href, 'application/vnd.apple.mpegurl']);
+    ['mezzanine', 'full', 'hds'].forEach(k => { if (src[k] && src[k].href && /\.mp4/i.test(src[k].href)) files.push([src[k].href, 'video/mp4']); });
+    if (src.href && /\.mp4/i.test(src.href)) files.push([src.href, 'video/mp4']);
+    if (L.mobile && L.mobile.source && L.mobile.source.href) files.push([L.mobile.source.href, 'video/mp4']);
+    const seen = new Set(); const uniq = files.filter(([u]) => !seen.has(u) && seen.add(u));
+    $sheet.querySelector('h3').textContent = v.headline || v.title || '';
+    $sheet.querySelector('p').textContent = v.description || '';
+    const out = $sheet.querySelector('#sheetOut'); out.href = web || '#'; out.hidden = !web;
+    const fb = $sheet.querySelector('.fallback'); fb.hidden = true;
+    const el = $sheet.querySelector('video'); el.innerHTML = uniq.map(([u, ty]) => `<source src="${esc(u)}" type="${ty}">`).join('');
+    el.poster = v.thumbnail || (v.posterImages && v.posterImages.default && v.posterImages.default.href) || '';
+    el.onerror = null; const lastSrc = el.querySelector('source:last-child'); if (lastSrc) lastSrc.addEventListener('error', () => { fb.hidden = false; }, { once: true });
+    if (!uniq.length) fb.hidden = false;
+    $sheet.hidden = false; document.body.classList.add('noscroll'); el.load(); const p = el.play(); if (p && p.catch) p.catch(() => { });
+  }
+  $sheet.addEventListener('click', e => { if (e.target === $sheet || e.target.closest('[data-act="close"]')) closeSheet(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet(); });
 
   /* ---------- boot ---------- */
   render().then(poll);

@@ -21,7 +21,7 @@
 <link rel="preconnect" href="https://site.api.espn.com" crossorigin>
 <link rel="preconnect" href="https://a.espncdn.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;700;800;900&family=Big+Shoulders+Display:wght@700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="v5/app.css?v=3">
+<link rel="stylesheet" href="v5/app.css?v=4">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -50,10 +50,20 @@
   <a class="tab" data-tab="players" href="#players"><svg class="o" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="8" r="3.8"/><path d="M4.5 20c0-3.8 3.3-6 7.5-6s7.5 2.2 7.5 6"/></svg><svg class="f" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="8" r="4.2"/><path d="M4 20.5c0-4.2 3.5-6.6 8-6.6s8 2.4 8 6.6z"/></svg><span>Players</span></a>
 </nav>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="sheet" id="sheet" hidden role="dialog" aria-label="Video">
+  <div class="sheet-in">
+    <button class="ib close" data-act="close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    <video controls playsinline preload="metadata"></video>
+    <div class="fallback" hidden><b>This clip won't play here.</b><span>ESPN's video servers refused the request, so the link opens it on ESPN instead.</span></div>
+    <h3></h3><p></p>
+    <a class="btn ghost" id="sheetOut" href="#" target="_blank" rel="noopener">Open on ESPN</a>
+  </div>
+</div>
 
 <script src="v5/config.js?v=1"></script>
 <script src="js/core.js?v=33"></script>
-<script src="v5/views.js?v=3"></script>
-<script src="v5/app.js?v=3"></script>
+<script src="v5/views.js?v=4"></script>
+<script src="v5/screens.js?v=4"></script>
+<script src="v5/app.js?v=4"></script>
 </body>
 </html>
