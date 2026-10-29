@@ -10,6 +10,7 @@
   const H = (strings, ...vals) => strings.reduce((out, s, i) => out + s + (i < vals.length ? vals[i] : ''), '');
   const dark = c => c && HW.darkOf(c, c) || '#1d2633';
   const teamColor = t => hx(t && t.color) || '#2A2D33';
+  const V_lift = c => { const h = (c || '').replace('#', ''); if (h.length < 6) return c; const [r, g, b] = [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16)); const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255; if (lum > 0.45) return c; const k = lum < 0.15 ? 0.55 : 0.35; const m = v => Math.round(v + (255 - v) * k); return `rgb(${m(r)},${m(g)},${m(b)})`; };
   const href = { player: (lk, id) => `#player/${lk}/${id}`, team: (lk, id) => `#team/${lk}/${id}`, game: (lk, id) => `#game/${lk}/${id}` };
   const hide = `onerror="this.style.visibility='hidden'"`;
   const logo = (src, size = '') => `<span class="logo ${size}"><img src="${esc(src || '')}" alt="" loading="lazy" ${hide}></span>`;
@@ -19,7 +20,8 @@
   const empty = (title, body, cta) => `<div class="empty"><b>${esc(title)}</b>${body || ''}${cta || ''}</div>`;
   const skeleton = (n = 3, kind = 'row') => Array.from({ length: n }, () => `<div class="skel ${kind}"></div>`).join('');
   const recOf = t => t && t.rec ? t.rec : '';
-  const standingLine = (r, L) => !r ? '' : L.standingsMode === 'conferences' ? `${r.w}-${r.l}` : `${r.w}-${r.l}, ${ordinal(r.pos)} in the ${(r.groupAbbr || r.group || '').replace(/ern Conference$/, '')}`;
+  const confName = (name, abbr) => { const n = String(name || ''); const m = n.match(/^(East|West|North|South|Central|Atlantic|Pacific|Southeast|Southwest|Northwest)(ern)?( Conference| Division)?$/i); if (m) return m[1][0].toUpperCase() + m[1].slice(1).toLowerCase(); if (/ Conference$/i.test(n)) return n.replace(/ Conference$/i, ''); if (abbr && String(abbr).length > 3) return String(abbr); return n || String(abbr || ''); };
+  const standingLine = (r, L) => !r ? '' : L.standingsMode === 'conferences' ? `${r.w}-${r.l}` : `${r.w}-${r.l}, ${ordinal(r.pos)} in the ${confName(r.group, r.groupAbbr)}`;
   const starSvg = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="m12 2.8 2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.7l-5.9 3.1 1.2-6.5L2.5 9.7l6.6-.9z"/></svg>`;
   const starLine = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="m12 2.8 2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.7l-5.9 3.1 1.2-6.5L2.5 9.7l6.6-.9z"/></svg>`;
   const tvLabel = g => (g.tv && g.tv.label) || '';
@@ -48,7 +50,8 @@
   }
   function side(L, g, t, other) {
     const lo = g.state !== 'pre' && t.score != null && other.score != null && t.score < other.score;
-    const sc = g.state === 'pre' ? '' : `<span class="sc">${t.score == null ? '' : t.score}</span>`;
+    const won = g.state === 'post' && t.score != null && other.score != null && t.score > other.score;
+    const sc = g.state === 'pre' ? '' : `<span class="sc"${won ? ` style="color:${esc(V_lift(teamColor(t)))}"` : ''}>${t.score == null ? '' : t.score}</span>`;
     return `<div class="side${lo ? ' lo' : ''}">${logo(t.logo)}<span class="nm"><b>${t.rank ? `<i>${t.rank}</i>` : ''}${esc(t.short || t.name)}</b><span>${esc(recOf(t))}</span></span>${sc}</div>`;
   }
   function gameCard(L, g, ctx, withForecast = true, timeOnly = false) {
@@ -70,15 +73,21 @@
     </div></a>`;
   }
 
-  /* ---------- team info (site API team endpoint: record, standing, next game, logo, colour) ---------- */
-  async function teamInfo(L, id) {
-    const d = await jSoft(`${API(L)}/teams/${id}`, 600000); const t = d && d.team; if (!t) return null;
-    const rec = t.record && t.record.items && t.record.items.find(i => i.type === 'total' || i.description === 'Overall') || (t.record && t.record.items && t.record.items[0]);
-    const next = t.nextEvent && t.nextEvent[0] ? (() => { try { return parseEvent(t.nextEvent[0], L); } catch { return null; } })() : null;
-    return { id: String(t.id), abbr: t.abbreviation, name: t.displayName, short: t.shortDisplayName || t.name, loc: t.location, color: hx(t.color), alt: hx(t.alternateColor),
-      logo: t.logos && t.logos[0] && t.logos[0].href, rec: rec && rec.summary || '', standing: t.standingSummary || '', next };
+  /* ---------- team info: logo/colour from the league list, record from standings, next game from the schedule ----------
+     (the bare /teams/{id} endpoint is used only as an extra; the row renders without it) ---------- */
+  async function teamInfo(L, id, pre) {
+    id = String(id);
+    const [idx, st, sched, extra] = await Promise.all([pre && pre.idx ? pre.idx : teamsIndex(L), pre && pre.st !== undefined ? pre.st : standings(L).catch(() => null), jSoft(`${API(L)}/teams/${id}/schedule`, 300000), jSoft(`${API(L)}/teams/${id}`, 600000)]);
+    const t = idx[id] || {}; const r = st && st.byId && st.byId[id]; const x = extra && extra.team;
+    if (!t.id && !x) return null;
+    const evs = (sched && sched.events || []).map(e => { try { return parseEvent(e, L); } catch { return null; } }).filter(Boolean);
+    const next = evs.find(g => g.state !== 'post') || (x && x.nextEvent && x.nextEvent[0] ? (() => { try { return parseEvent(x.nextEvent[0], L); } catch { return null; } })() : null);
+    const last = evs.filter(g => g.state === 'post').slice(-1)[0] || null;
+    const recItem = x && x.record && x.record.items && (x.record.items.find(i => i.type === 'total') || x.record.items[0]);
+    return { id, abbr: t.abbr || (x && x.abbreviation), name: t.name || (x && x.displayName), short: t.short || (x && x.shortDisplayName), loc: t.loc, color: t.color || hx(x && x.color), alt: t.alt,
+      logo: t.logo || (x && x.logos && x.logos[0] && x.logos[0].href) || HW.logoUrl(L, t.abbr || (x && x.abbreviation)),
+      rec: r ? `${r.w}-${r.l}` : (recItem && recItem.summary) || '', standing: r && L.standingsMode !== 'conferences' ? `${ordinal(r.pos)} in the ${confName(r.group, r.groupAbbr)}` : (x && x.standingSummary) || '', row: r, next, last };
   }
-
 
   /* every team in the league, keyed by id: colour and logo for discs and rails */
   const teamIdx = {};
@@ -105,7 +114,7 @@
       S.today[lk] && S.today[lk].length ? S.today[lk] : scoreboard(L, today).catch(() => []),
       forecastCtx(L, today).catch(() => null), mine.length ? injuries(L) : null, jSoft(`${API(L)}/news?limit=25`, 600000),
       fp.length && L.sport === 'basketball' ? leaguePlayers(L).catch(() => null) : null,
-      Promise.all(mine.map(id => teamInfo(L, id)))
+      (async () => { const idx = await teamsIndex(L); const st = await standings(L).catch(() => null); return Promise.all(mine.map(id => teamInfo(L, id, { idx, st }).catch(() => null))); })()
     ]);
     S.today[lk] = games;
     const parts = [];
@@ -117,9 +126,9 @@
 
     // my teams: record, what's next or how it's going, win chance
     const rows = teams.filter(Boolean).map(t => {
-      const g = byTeam.get(t.id) || t.next; const f = g ? safeF(L, g, ctx) : null;
+      const g = byTeam.get(t.id) || t.next || t.last; const f = g ? safeF(L, g, ctx) : null;
       const us = g ? (g.home.id === t.id ? g.home : g.away) : null, them = g ? (g.home.id === t.id ? g.away : g.home) : null;
-      let line = 'No game scheduled', right = '';
+      let line = t.standing || 'No game scheduled', right = '';
       if (g) {
         const home = g.home.id === t.id; const vs = `${home ? 'vs' : 'at'} ${esc(them.short)}`;
         if (g.state === 'in') { const lead = us.score - them.score; line = `${lead > 0 ? `Leading ${esc(them.short)} by ${lead}` : lead < 0 ? `Trailing ${esc(them.short)} by ${-lead}` : `Tied with ${esc(them.short)}`}, ${esc(g.detail)}`; }
@@ -143,11 +152,14 @@
       ? `<div class="rail">${fp.map(p => `<a class="pl" href="${href.player(lk, p.id)}" style="--tc:${esc(p.color || '#2A2D33')}">${headshot(p.img, p.color)}<b>${esc(p.short || p.name)}</b><span>${esc(ppgOf(p.id) || p.team || '')}</span></a>`).join('')}</div>`
       : empty('Follow the players you watch', '<p style="margin:6px 0 0">They show up here with their scoring line, and their profile is one tap away.</p>', `<a class="btn" href="#players">Find players</a>`)));
 
-    // injuries on my teams
+    // injuries on my teams, grouped by team, tap for the full note
     if (inj && mine.length) {
-      const list = [];
-      mine.forEach(id => { const t = teams.find(x => x && x.id === id); const b = inj.byTeam[id]; if (!b) return; b.list.forEach(x => list.push({ t, x })); });
-      if (list.length) parts.push(sec('Injuries', 'your teams') + `<div class="rows">${list.slice(0, 8).map(({ t, x }) => { const a = x.athlete || {}; const st = x.status || ''; const cls = /out/i.test(st) ? 'out' : /day|quest|doubt/i.test(st) ? 'q' : /prob|avail/i.test(st) ? 'ok' : ''; const det = x.details || {}; const why = [det.type, det.returnDate ? 'back around ' + dateShort(det.returnDate) : (x.shortComment || '').replace(/\s+/g, ' ')].filter(Boolean).join(', '); return `<a class="row" href="${href.player(lk, a.id)}">${t ? logo(t.logo, 'm') : ''}<span class="t"><b>${esc(a.displayName || '')}</b><span>${esc(why)}</span></span><span class="tag ${cls}">${esc(st)}</span></a>`; }).join('')}</div>`);
+      S.injuries = S.injuries || {};
+      const blocks = teams.filter(Boolean).map(t => {
+        const b = inj.byTeam[t.id]; if (!b || !b.list.length) return '';
+        return `<div class="injgrp"><div class="injhd">${logo(t.logo, 's')}<b>${esc(t.short)}</b><span>${b.list.length}</span></div>${b.list.map(x => { const a = x.athlete || {}; const key = `${t.id}:${a.id}`; S.injuries[key] = { x, team: t }; const st = x.status || ''; const cls = /out/i.test(st) ? 'out' : /day|quest|doubt/i.test(st) ? 'q' : /prob|avail/i.test(st) ? 'ok' : ''; const det = x.details || {}; const why = [det.type || det.detail, det.returnDate ? 'back around ' + dateShort(det.returnDate) : ''].filter(Boolean).join(', '); return `<button class="row" data-act="injury" data-key="${esc(key)}">${headshot(a.headshot && (a.headshot.href || a.headshot), t.color, 44)}<span class="t"><b>${esc(a.displayName || '')}</b><span>${esc(why || (x.shortComment || '').slice(0, 80))}</span></span><span class="tag ${cls}">${esc(st)}</span></button>`; }).join('')}</div>`;
+      }).filter(Boolean);
+      if (blocks.length) parts.push(sec('Injuries', 'your teams') + `<div class="rows">${blocks.join('')}</div>`);
     }
 
     // news that mentions my teams or players
@@ -183,9 +195,17 @@
   async function player(lk, id) {
     const L = LEAGUES[lk]; if (!L || !id) { $main.innerHTML = empty('Player not found'); return; }
     $main.innerHTML = `<div class="topbar"><a class="ib" href="#home" data-act="back" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m14 6-6 6 6 6"/></svg></a></div>` + skeleton(1, 'card') + skeleton(6, 'row');
-    const [bio, ov, gl, career] = await Promise.all([jSoft(`${WEB(L)}/athletes/${id}`, 3600000), jSoft(`${WEB(L)}/athletes/${id}/overview`, 600000), jSoft(`${WEB(L)}/athletes/${id}/gamelog`, 600000), jSoft(`${WEB(L)}/athletes/${id}/stats`, 3600000)]);
-    const a = bio && (bio.athlete || bio);
-    if (!a || !a.displayName) { $main.innerHTML = empty("Couldn't load this player", '<p style="margin:6px 0 0">The feed didn\'t answer. Pull down to try again.</p>'); return; }
+    const bioUrl = `${WEB(L)}/athletes/${id}`;
+    let [bio, ov, gl, career] = await Promise.all([jSoft(bioUrl, 3600000), jSoft(`${WEB(L)}/athletes/${id}/overview`, 600000), jSoft(`${WEB(L)}/athletes/${id}/gamelog`, 600000), jSoft(`${WEB(L)}/athletes/${id}/stats`, 3600000)]);
+    if (!bio) bio = await jSoft(bioUrl, 0);   // one retry: the bio endpoint drops requests now and then
+    let a = bio && (bio.athlete || bio);
+    if (!a || !a.displayName) {   // second source: the core API, then at least a name and headshot from the league list
+      const core = await jSoft(`https://sports.core.api.espn.com/v2/sports/basketball/leagues/${L.path.split('/')[1]}/athletes/${id}`, 3600000);
+      if (core && core.displayName) a = { ...core, team: core.team && core.team.$ref ? null : core.team, headshot: core.headshot, position: core.position, college: core.college && core.college.$ref ? null : core.college };
+      else { const lp0 = await leaguePlayers(L).catch(() => null); const p = lp0 && lp0.rows.find(x => x.id === String(id)); if (p) a = { id, displayName: p.name, shortName: p.short, headshot: p.img ? { href: p.img } : null, position: { displayName: p.pos }, team: { id: p.teamId } }; }
+    }
+    if (!a || !a.displayName) { $main.innerHTML = `<div class="topbar"><a class="ib" href="#home" data-act="back" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m14 6-6 6 6 6"/></svg></a></div>` + empty("Couldn't load this player", '<p style="margin:6px 0 0">ESPN\'s feed didn\'t answer for this player. <a href="#" data-act="reload">Try again</a>.</p>'); return; }
+    if (a.team && !a.team.color) { const idx0 = await teamsIndex(L); const t0 = idx0[String(a.team.id)]; if (t0) a.team = { ...a.team, ...{ color: (t0.color || '').replace('#', ''), displayName: a.team.displayName || t0.name, shortDisplayName: a.team.shortDisplayName || t0.short, logos: a.team.logos || [{ href: t0.logo }], abbreviation: a.team.abbreviation || t0.abbr } }; }
     const tm = a.team || {}; const color = hx(tm.color) || '#2A2D33'; const alt = hx(tm.alternateColor);
     const teamLogo = tm.logos && tm.logos[0] && tm.logos[0].href;
     const college = /^ncaa/.test(lk);
@@ -195,7 +215,8 @@
     const following = fplayers.has(lk, id);
     const injury = a.injuries && a.injuries[0];
     const subLine = `${tm.id ? `<a href="${href.team(lk, tm.id)}">${esc(tm.shortDisplayName || tm.name || tm.displayName)}</a> ` : ''}${esc((a.position && a.position.displayName || '').toLowerCase())}${a.jersey ? `, No. ${esc(a.jersey)}` : ''}`;
-    const facts = [a.displayHeight, a.displayWeight, college ? (a.experience && a.experience.displayValue) : (a.age ? `Age ${a.age}` : ''), a.college && a.college.name, college && a.birthPlace ? [a.birthPlace.city, a.birthPlace.state].filter(Boolean).join(', ') : ''].filter(Boolean);
+    const country = a.citizenship || (a.birthPlace && a.birthPlace.country && !/^(USA|United States)$/i.test(a.birthPlace.country) ? a.birthPlace.country : '');
+    const facts = [a.displayHeight, a.displayWeight, college ? (a.experience && a.experience.displayValue) : (a.age ? `Age ${a.age}` : ''), country, a.college && a.college.name, a.birthPlace ? [a.birthPlace.city, a.birthPlace.state || (country ? '' : a.birthPlace.country)].filter(Boolean).join(', ') : ''].filter(Boolean);
     const snap = { lk, id: String(id), name: a.displayName, short: a.shortName || a.displayName, img: a.headshot && a.headshot.href, team: tm.abbreviation || '', color };
     const hero = `<div class="ehero" style="--a:${esc(color)}">
       <div class="wm">${esc(a.jersey || '')}</div>
@@ -211,7 +232,7 @@
 
     // scoring mix from the game log: twos, threes, free throws per game
     let evRows = [];
-    if (gl && gl.events && gl.seasonTypes) { gl.seasonTypes.forEach(stp => (stp.categories || []).forEach(c => (c.events || []).forEach(e => { const meta = gl.events[e.eventId]; if (meta) evRows.push({ meta, stats: e.stats || [], id: e.eventId }); }))); evRows.sort((x, y) => new Date(y.meta.gameDate) - new Date(x.meta.gameDate)); }
+    if (gl && gl.events && gl.seasonTypes) { const types = gl.seasonTypes.filter(t => /regular/i.test(t.displayName || '')).length ? gl.seasonTypes.filter(t => /regular/i.test(t.displayName || '')) : gl.seasonTypes; types.forEach(stp => (stp.categories || []).forEach(c => (c.events || []).forEach(e => { const meta = gl.events[e.eventId]; if (meta) evRows.push({ meta, stats: e.stats || [], id: e.eventId }); }))); evRows.sort((x, y) => new Date(y.meta.gameDate) - new Date(x.meta.gameDate)); }
     const gLabels = gl && gl.labels || [];
     const gi = l => gLabels.indexOf(l);
     const made = (r, l) => { const i = gi(l); const v = i >= 0 ? String(r.stats[i] || '') : ''; const m = v.match(/^(\d+)-(\d+)$/); return m ? [+m[1], +m[2]] : [0, 0]; };
@@ -224,9 +245,9 @@
       const C = 2 * Math.PI * 46; let off = 0;
       const arcs = segs.map(([, v, c]) => { const len = total ? v / total * C : 0; const s = `<circle cx="60" cy="60" r="46" stroke="${c}" stroke-dasharray="${len.toFixed(1)} ${(C - len).toFixed(1)}" stroke-dashoffset="${(-off).toFixed(1)}"/>`; off += len; return s; }).join('');
       const pctOf = (m, a) => a ? (m / a * 100).toFixed(1) : '0.0';
-      mix = sec('Where the points come from', `${n} game${n === 1 ? '' : 's'}`) +
+      mix = sec('Where the points come from', `${n} regular-season game${n === 1 ? '' : 's'}`) +
         `<div class="chips" role="tablist"><button class="chip on" data-act="mix" data-mix="scoring" aria-pressed="true">Scoring</button><button class="chip" data-act="mix" data-mix="shooting" aria-pressed="false">Shooting</button></div>
-        <div class="donut" data-mix-panel="scoring"><svg width="138" height="138" viewBox="0 0 120 120" role="img" aria-label="${total.toFixed(1)} points a game"><circle cx="60" cy="60" r="46" fill="none" stroke="var(--surf-3)" stroke-width="16"/><g fill="none" stroke-width="16" transform="rotate(-90 60 60)">${arcs}</g><text x="60" y="58" text-anchor="middle" fill="var(--ink)" style="font:800 34px var(--num)">${total.toFixed(1)}</text><text x="60" y="74" text-anchor="middle" fill="var(--ink-3)" style="font:700 10.5px var(--ui)">points a game</text></svg>
+        <div class="donut" data-mix-panel="scoring"><svg width="138" height="138" viewBox="0 0 120 120" role="img" aria-label="${total.toFixed(1)} points a game"><circle cx="60" cy="60" r="46" fill="none" stroke="var(--surf-3)" stroke-width="16"/><g fill="none" stroke-width="16" transform="rotate(-90 60 60)">${arcs}</g><text x="60" y="63" text-anchor="middle" fill="var(--ink)" style="font:800 32px var(--num)">${total.toFixed(1)}</text><text x="60" y="80" text-anchor="middle" fill="var(--ink-3)" style="font:700 11px var(--ui);letter-spacing:.06em">PPG</text></svg>
           <div class="key">${segs.map(([l, v, c]) => `<div><i style="background:${c}"></i><span>${l}</span><b>${v.toFixed(1)}</b></div>`).join('')}</div></div>
         <div class="bars" data-mix-panel="shooting" hidden style="--tc:${esc(color)}"><div><span>Field goals</span><em><i style="width:${pctOf(fg, fga)}%"></i></em><b>${pctOf(fg, fga)}</b></div><div><span>Threes</span><em><i style="width:${pctOf(tp, tpa)}%"></i></em><b>${pctOf(tp, tpa)}</b></div><div><span>Free throws</span><em><i style="width:${pctOf(ft, fta)}%"></i></em><b>${pctOf(ft, fta)}</b></div><div><span>Per game</span><em style="background:none"></em><b style="font:600 13px var(--ui);color:var(--ink-2)">${(fga / n).toFixed(1)} FGA, ${(tpa / n).toFixed(1)} 3PA, ${(fta / n).toFixed(1)} FTA</b></div></div>`;
     }
@@ -243,8 +264,12 @@
     }
 
     // latest stories and clips
-    const items = ov && ov.news ? ov.news.filter(n => n.headline).slice(0, 8) : [];
-    const latest = items.length ? sec('Latest') + `<div class="rows">${items.map(n => HW.v5.newsRow(lk, n)).join('')}</div>` : '';
+    const items = ov && ov.news ? ov.news.filter(n => n.headline) : [];
+    const isClip = n => (n.video || n.videos || []).length && (/media|video/i.test(n.type || '') || !n.description);
+    const clips = items.filter(isClip).slice(0, 10), stories = items.filter(n => !isClip(n)).slice(0, 6);
+    clips.forEach(n => (n.video || n.videos || []).forEach(v => { if (v && v.id != null) S.videos[String(v.id)] = v; }));
+    const moments = clips.length ? sec('Top moments') + `<div class="media">${clips.map(n => { const v = (n.video || n.videos)[0]; const im = (n.images && n.images[0] && n.images[0].url) || v.thumbnail; return `<button class="clip" data-act="play" data-vid="${esc(String(v.id))}"><div class="th">${im ? `<img src="${esc(im)}" alt="" loading="lazy">` : ''}<i><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l12-7.5z"/></svg></i>${v.duration ? `<em>${Math.floor(v.duration / 60)}:${String(v.duration % 60).padStart(2, '0')}</em>` : ''}</div><b>${esc(n.headline)}</b><span>${esc(n.published ? ago(n.published) : '')}</span></button>`; }).join('')}</div>` : '';
+    const latest = moments + (stories.length ? sec('Stories') + `<div class="rows">${stories.map(n => HW.v5.newsRow(lk, n)).join('')}</div>` : '');
 
     // career, by season
     let careerT = '';
@@ -258,7 +283,7 @@
 
     // about
     const born = [a.dateOfBirth ? new Date(a.dateOfBirth).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) : '', a.birthPlace ? [a.birthPlace.city, a.birthPlace.state || a.birthPlace.country].filter(Boolean).join(', ') : ''].filter(Boolean).join(', ');
-    const about = [['Born', born], ['Drafted', a.displayDraft || (a.draft && a.draft.displayText) || ''], ['Experience', a.experience && a.experience.displayValue || (a.experience && a.experience.years != null ? `${a.experience.years} seasons` : '')], ['College', a.college && a.college.name || ''], ['Status', a.status && a.status.name || '']].filter(([, v]) => v);
+    const about = [['Full name', a.fullName && a.fullName !== a.displayName ? a.fullName : ''], ['Born', born], ['Country', country || (a.birthPlace && a.birthPlace.country) || ''], ['Position', a.position && a.position.displayName || ''], ['Drafted', a.displayDraft || (a.draft && a.draft.displayText) || (a.draft && a.draft.year ? `${a.draft.year}, round ${a.draft.round}, pick ${a.draft.selection}` : '') || ''], ['Debut', a.debutYear ? String(a.debutYear) : ''], ['Experience', a.experience && a.experience.displayValue || (a.experience && a.experience.years != null ? `${a.experience.years} season${a.experience.years === 1 ? '' : 's'}` : '')], ['College', a.college && a.college.name || ''], ['High school', a.highSchool || ''], ['Status', a.status && a.status.name || '']].filter(([, v]) => v);
     const aboutT = about.length ? sec('About') + `<table class="tbl kv"><tbody>${about.map(([k, v]) => `<tr><td>${k}</td><td>${esc(v)}</td></tr>`).join('')}</tbody></table>` : '';
 
     $main.innerHTML = `<div class="topbar"><a class="ib" href="#home" data-act="back" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m14 6-6 6 6 6"/></svg></a>${tm.id ? `<a class="ttl" href="${href.team(lk, tm.id)}">${esc(tm.displayName || '')}</a>` : ''}<div class="sp"><button class="ib" data-act="share" data-title="${esc(a.displayName)}" aria-label="Share"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7.5 7.5 12 3l4.5 4.5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg></button></div></div>` + hero + strip + mix + next + log + latest + careerT + aboutT;
@@ -296,5 +321,5 @@
   }
 
   HW.v5 = Object.assign(HW.v5 || {}, { home, scores, player, players, fplayers, teamInfo, teamsIndex, gameCard, heroCard,
-    _: { h: H, logo, headshot, chev, sec, empty, skeleton, href, safeF, gameCard, heroCard, teamInfo, teamsIndex, fplayers, starSvg, starLine, tvLabel, teamColor } });
+    _: { h: H, logo, headshot, chev, sec, empty, skeleton, href, safeF, gameCard, heroCard, teamInfo, teamsIndex, fplayers, starSvg, starLine, tvLabel, teamColor, confName } });
 })();

@@ -5,13 +5,13 @@
   const { LEAGUES, ORDER, esc, j, jSoft, todayCT, addDays, dayLabel, relDay, tip, dateShort, ago, pct, ordinal, sign, hx, store, API, WEB,
     favs, parseEvent, isLive, isFav, interest, scoreboard, standings, rankings, injuries, forecast, forecastCtx, leaguePlayers, watchFor, S, ymdOf } = HW;
   const V = HW.v5;
-  const { h: H, logo, headshot, chev, sec, empty, skeleton, href, safeF, gameCard, heroCard, teamInfo, teamsIndex, fplayers, starSvg, starLine, tvLabel } = V._;
+  const { h: H, logo, headshot, chev, sec, empty, skeleton, href, safeF, gameCard, heroCard, teamInfo, teamsIndex, fplayers, starSvg, starLine, tvLabel, confName } = V._;
   const $main = document.getElementById('main');
   S.news = S.news || {}; S.videos = S.videos || {};
   const hide = `onerror="this.style.visibility='hidden'"`;
   const topbar = (title, backHref = '#home', extra = '') => `<div class="topbar"><a class="ib" href="${backHref}" data-act="back" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m14 6-6 6 6 6"/></svg></a><span class="ttl">${title}</span><div class="sp">${extra}<button class="ib" data-act="share" data-title="${esc(title.replace(/<[^>]+>/g, ''))}" aria-label="Share"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7.5 7.5 12 3l4.5 4.5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg></button></div></div>`;
   const chips = (items, on, act, key) => `<div class="chips" role="tablist">${items.map(([k, l]) => `<button class="chip${k === on ? ' on' : ''}" data-act="${act}" data-${key}="${esc(k)}" aria-pressed="${k === on}">${esc(l)}</button>`).join('')}</div>`;
-  const standingLine = (r, L) => !r ? '' : L.standingsMode === 'conferences' ? `${r.w}-${r.l}${r.conf ? `, ${r.conf} in the ${r.groupAbbr || r.group}` : ''}` : `${r.w}-${r.l}, ${ordinal(r.pos)} in the ${(r.groupAbbr || r.group || '').replace(/ern Conference$/, '')}`;
+  const standingLine = (r, L) => !r ? '' : L.standingsMode === 'conferences' ? `${r.w}-${r.l}${r.conf ? `, ${r.conf} in the ${confName(r.group, r.groupAbbr)}` : ''}` : `${r.w}-${r.l}, ${ordinal(r.pos)} in the ${confName(r.group, r.groupAbbr)}`;
 
   /* news items, shared by every list: cache the object so the reader can open it without a second list fetch */
   function newsRow(lk, a, { thumb = true } = {}) {
@@ -35,7 +35,7 @@
     const conf = L.standingsMode === 'conferences';
     const groups = st.groups;
     let tab = store.get('v5:stab:' + lk, groups[0].abbr || groups[0].name);
-    const items = conf ? groups.map(g => [g.abbr || g.name, g.abbr || g.name]) : [...groups.map(g => [g.abbr || g.name, (g.abbr || g.name).replace(/ern Conference$/, '')]), ['league', 'League']];
+    const items = conf ? groups.map(g => [g.abbr || g.name, confName(g.name, g.abbr)]) : [...groups.map(g => [g.abbr || g.name, confName(g.name, g.abbr)]), ['league', 'League']];
     if (!items.some(([k]) => k === tab)) tab = items[0][0];
     let rows, title;
     if (tab === 'league') { rows = groups.flatMap(g => g.rows).sort((a, b) => (b.w - b.l) - (a.w - a.l) || (b.pct || 0) - (a.pct || 0) || (b.diff || 0) - (a.diff || 0)).map((r, i) => ({ ...r, pos: i + 1 })); title = L.label; }
@@ -56,7 +56,7 @@
     $main.innerHTML = skeleton(10, 'row');
     const [st, idx] = await Promise.all([standings(L).catch(() => null), teamsIndex(L)]);
     const q0 = store.get('v5:tq', '') || '', tab0 = store.get('v5:ttab', 'all');
-    const groups = st && st.groups.length ? st.groups.map(g => ({ name: (g.abbr || g.name).replace(/ern Conference$/, ''), full: g.name, rows: g.rows.map(r => ({ ...r, logo: r.logo || (idx[r.id] || {}).logo })) })) : [{ name: L.label, full: L.label, rows: Object.values(idx).map(t => ({ id: t.id, short: t.short, name: t.name, logo: t.logo })) }];
+    const groups = st && st.groups.length ? st.groups.map(g => ({ name: confName(g.name, g.abbr), full: g.name, rows: g.rows.map(r => ({ ...r, logo: r.logo || (idx[r.id] || {}).logo })) })) : [{ name: L.label, full: L.label, rows: Object.values(idx).map(t => ({ id: t.id, short: t.short, name: t.name, logo: t.logo })) }];
     const paint = () => {
       const q = (store.get('v5:tq', '') || '').trim().toLowerCase(), tab = store.get('v5:ttab', 'all');
       const blocks = groups.map(g => {
@@ -64,7 +64,7 @@
         if (tab === 'following') rows = rows.filter(r => favs.has(lk, r.id));
         if (q) rows = rows.filter(r => `${r.name} ${r.short} ${r.abbr || ''}`.toLowerCase().includes(q));
         if (!rows.length) return '';
-        return sec(g.name, groups.length > 1 && g.full !== g.name ? g.full.replace(g.name, '').trim() : '') + `<div class="rows">${rows.map(r => { const on = favs.has(lk, r.id); return `<div class="row prow"><a class="go" href="${href.team(lk, r.id)}" aria-label="${esc(r.name)}">${logo(r.logo)}</a><a class="t" href="${href.team(lk, r.id)}"><b>${esc(r.name || r.short)}</b><span>${esc(standingLine(r, L) || '')}</span></a><button class="star${on ? ' on' : ''}" data-act="fav" data-lk="${lk}" data-id="${esc(r.id)}" aria-pressed="${on}" aria-label="${on ? 'Unfollow' : 'Follow'} ${esc(r.name)}">${on ? starSvg : starLine}</button></div>`; }).join('')}</div>`;
+        return sec(g.name, '') + `<div class="rows">${rows.map(r => { const on = favs.has(lk, r.id); return `<div class="row prow"><a class="go" href="${href.team(lk, r.id)}" aria-label="${esc(r.name)}">${logo(r.logo)}</a><a class="t" href="${href.team(lk, r.id)}"><b>${esc(r.name || r.short)}</b><span>${esc(standingLine(r, L) || '')}</span></a><button class="star${on ? ' on' : ''}" data-act="fav" data-lk="${lk}" data-id="${esc(r.id)}" aria-pressed="${on}" aria-label="${on ? 'Unfollow' : 'Follow'} ${esc(r.name)}">${on ? starSvg : starLine}</button></div>`; }).join('')}</div>`;
       }).filter(Boolean).join('');
       const el = $main.querySelector('#tlist'); if (el) el.innerHTML = blocks || empty(tab === 'following' ? 'No followed teams yet' : 'No team matches', tab === 'following' ? '<p style="margin:6px 0 0">Tap the star on any team to follow it.</p>' : '');
     };
@@ -91,7 +91,7 @@
     const evs = (sched && sched.events || []).map(e => { try { return parseEvent(e, L); } catch { return null; } }).filter(Boolean);
     const next = evs.find(g => g.state !== 'post');
     const ctx = next ? await forecastCtx(L, ymdOf(next.date)).catch(() => null) : null;
-    const facts = [r ? `${r.w}-${r.l}` : (t0.recordSummary || ''), rank ? `Ranked No. ${rank}` : '', r && L.standingsMode !== 'conferences' ? `${ordinal(r.pos)} in the ${(r.groupAbbr || r.group || '').replace(/ern Conference$/, '')}` : (t0.standingSummary || ''), r && r.strk ? (/^W/.test(r.strk) ? `Won ${r.strk.slice(1)} straight` : `Lost ${r.strk.slice(1)} straight`) : ''].filter(Boolean);
+    const facts = [r ? `${r.w}-${r.l}` : (t0.recordSummary || ''), rank ? `Ranked No. ${rank}` : '', r && L.standingsMode !== 'conferences' ? `${ordinal(r.pos)} in the ${confName(r.group, r.groupAbbr)}` : (t0.standingSummary || ''), r && r.strk ? (/^W/.test(r.strk) ? `Won ${r.strk.slice(1)} straight` : `Lost ${r.strk.slice(1)} straight`) : ''].filter(Boolean);
     const hero = `<div class="ehero team" style="--a:${esc(color)}"><div class="wm">${esc(t0.abbreviation || '')}</div><img class="biglogo" src="${esc(lg)}" alt="" ${hide}>
       <div class="in"><div class="sub">${esc(r && r.group && L.standingsMode === 'conferences' ? r.group : (t0.standingSummary && /Division/.test(t0.standingSummary) ? '' : L.label))}</div><h1>${esc(t0.location || '')}<br>${esc(t0.name || t0.displayName)}</h1>
         <div class="facts">${facts.map(f => `<span>${esc(f)}</span>`).join('')}</div>

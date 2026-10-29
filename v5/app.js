@@ -50,6 +50,8 @@
     catch (err) { if (my === seq) $main.innerHTML = `<div class="empty"><b>Something went wrong</b><p style="margin:6px 0 0">${esc(err && err.message || 'Try again in a moment.')}</p></div>`; console.error(err); }
     if (my !== seq) return;
     paintPills(r.lk, leagueScreen);   // live counts may have arrived while the view loaded
+    $main.classList.remove('enter'); void $main.offsetWidth; $main.classList.add('enter');
+    document.dispatchEvent(new CustomEvent('rivl:rendered'));
   }
   window.addEventListener('hashchange', render);
 
@@ -126,11 +128,19 @@
       const star = on ? `<svg viewBox="0 0 24 24" fill="currentColor"><path d="m12 2.8 2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.7l-5.9 3.1 1.2-6.5L2.5 9.7l6.6-.9z"/></svg>` : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="m12 2.8 2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.7l-5.9 3.1 1.2-6.5L2.5 9.7l6.6-.9z"/></svg>`;
       act.innerHTML = act.classList.contains('star') ? star : star + (on ? 'Following' : 'Follow');
       toast(on ? `Following ${act.dataset.name || 'team'}` : `Unfollowed ${act.dataset.name || 'team'}`);
-      $main.dispatchEvent(new CustomEvent('rivl:fav'));
+      $main.dispatchEvent(new CustomEvent('rivl:fav')); $panel.dispatchEvent(new CustomEvent('rivl:fav'));
     }
     if (a === 'expand') { e.preventDefault(); $main.querySelectorAll(`[data-more="${act.dataset.more}"]`).forEach(el => { el.hidden = false; }); act.remove(); }
     if (a === 'stab') { e.preventDefault(); store.set('v5:stab:' + (current ? current.lk : 'nba'), act.dataset.tab); render(); }
     if (a === 'play') { e.preventDefault(); openSheet(act.dataset.vid); }
+    if (a === 'injury') { e.preventDefault(); openInjury(act.dataset.key); }
+    if (a === 'reload') { e.preventDefault(); render(); }
+    if (a === 'onb-next') { e.preventDefault(); onbStep(+act.dataset.step); }
+    if (a === 'onb-lk') { e.preventDefault(); store.set('v5:lk', act.dataset.lk); onbStep(1); }
+    if (a === 'onb-done') { e.preventDefault(); store.set('v5:onboarded', true); closePanel(); render(); }
+    if (a === 'install') { e.preventDefault(); install(); }
+    if (a === 'install-later') { e.preventDefault(); store.set('v5:installDismissed', Date.now()); const b = document.getElementById('installBar'); if (b) b.remove(); }
+    if (a === 'panel-close') { e.preventDefault(); closePanel(); }
     if (a === 'date') { e.preventDefault(); store.set('v5:date', act.dataset.ymd); render(); }
   });
 
@@ -159,6 +169,72 @@
   $sheet.addEventListener('click', e => { if (e.target === $sheet || e.target.closest('[data-act="close"]')) closeSheet(); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet(); });
 
+  /* ---------- panel: a sheet for anything that isn't a video (injury notes, first-run setup) ---------- */
+  const $panel = document.getElementById('panel');
+  function openPanel(html, { full = false } = {}) { $panel.querySelector('.panel-in').innerHTML = html; $panel.classList.toggle('full', full); $panel.hidden = false; document.body.classList.add('noscroll'); $panel.querySelector('.panel-in').scrollTop = 0; }
+  function closePanel() { if ($panel.hidden) return; $panel.hidden = true; $panel.classList.remove('full'); document.body.classList.remove('noscroll'); }
+  $panel.addEventListener('click', e => { if (e.target === $panel && !$panel.classList.contains('full')) closePanel(); });
+
+  function openInjury(key) {
+    const rec = S.injuries && S.injuries[key]; if (!rec) return;
+    const { x, team } = rec; const at = x.athlete || {}; const det = x.details || {}; const st = x.status || '';
+    const cls = /out/i.test(st) ? 'out' : /day|quest|doubt/i.test(st) ? 'q' : /prob|avail/i.test(st) ? 'ok' : '';
+    const what = [det.type, det.detail && det.detail !== det.type ? det.detail : '', det.side && det.side !== 'Not Specified' ? det.side.toLowerCase() : '', det.location && det.location !== det.type ? det.location : ''].filter(Boolean).join(', ');
+    const rows = [['Status', `<span class="tag ${cls}">${esc(st)}</span>`], ['Injury', esc(what || '—')], ['Reported', x.date ? esc(new Date(x.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', timeZone: HW.TZ })) : ''], ['Expected back', det.returnDate ? esc(new Date(det.returnDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', timeZone: 'UTC' })) : (/out/i.test(st) ? 'No date given' : '')], ['Fantasy', det.fantasyStatus && det.fantasyStatus.description ? esc(det.fantasyStatus.description) : '']].filter(([, v]) => v);
+    const note = x.longComment || x.shortComment || '';
+    const lk = current ? current.lk : 'nba';
+    openPanel(`<button class="ib close" data-act="panel-close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      <div class="inj-head"><span class="hs" style="--tc:${esc(team.color || '#2A2D33')};width:64px;height:64px">${at.headshot ? `<img src="${esc(at.headshot.href || at.headshot)}" alt="" onerror="this.style.visibility='hidden'">` : ''}</span><div><h3>${esc(at.displayName || '')}</h3><p>${esc(team.short || '')}${at.position && at.position.abbreviation ? `, ${esc(at.position.abbreviation)}` : ''}</p></div></div>
+      <table class="tbl kv"><tbody>${rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('')}</tbody></table>
+      ${note ? `<p class="inj-note">${esc(note)}</p>` : ''}
+      <p class="foot" style="padding:10px 0 0">Status and notes are ESPN's. The line effect on forecasts is RIVL's.</p>
+      <div style="display:flex;gap:8px;margin-top:14px"><a class="btn" href="#player/${lk}/${esc(at.id || '')}" data-act="panel-close">Open profile</a><a class="btn ghost" href="#team/${lk}/${esc(team.id)}" data-act="panel-close">${esc(team.short || 'Team')}</a></div>`);
+  }
+
+  /* ---------- first run: pick teams, pick players, add to the home screen ---------- */
+  let deferredInstall = null;
+  window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredInstall = e; const b = document.getElementById('installBtn'); if (b) b.hidden = false; });
+  const standalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) && !window.MSStream;
+  async function install() { if (deferredInstall) { deferredInstall.prompt(); const r = await deferredInstall.userChoice.catch(() => null); deferredInstall = null; if (r && r.outcome === 'accepted') { toast('Installed'); const b = document.getElementById('installBar'); if (b) b.remove(); } } else toast(isIOS ? 'Tap Share, then Add to Home Screen' : 'Use your browser menu: Add to Home screen'); }
+  function needsOnboarding() { if (store.get('v5:onboarded', false)) return false; const F = HW.favs.all(); const anyTeam = ORDER.some(k => (F[k] || []).length); const anyPlayer = (store.get('v5:players', []) || []).length; return !(anyTeam || anyPlayer); }
+  async function onbStep(n) {
+    const lk = lkOf(store.get('v5:lk', 'nba')); const L = LEAGUES[lk];
+    const dots = `<div class="onb-dots">${[0, 1, 2].map(i => `<i class="${i === n ? 'on' : ''}"></i>`).join('')}</div>`;
+    const leaguePills = `<div class="pills" style="padding:0 0 14px">${ORDER.map(k => `<button class="pill${k === lk ? ' on' : ''}" data-act="onb-lk" data-lk="${k}">${esc(LEAGUES[k].label)}</button>`).join('')}</div>`;
+    if (n === 0 || n === 1) {
+      openPanel(`<div class="onb"><div class="onb-logo"><svg viewBox="0 0 250 123.41" fill="currentColor"><path d="M0 0H88.8A11.2 11.2 0 0 1 100 11.2V50.5A11.2 11.2 0 0 1 88.8 61.7H62.3L0 25.61ZM0 47.02L100 104.96V123.41H0ZM108 0H132V123.41H108ZM140 0H164.5L168.0 96L171.5 0H196L192 123.41H144ZM204 0H228V99.41H250V123.41H204Z"/></svg></div>${dots}<h2>${n === 0 ? 'Pick your teams' : 'Follow some players'}</h2><p>${n === 0 ? 'They lead Home and are the only ones you get updates about.' : 'Their lines, clips and profiles sit on Home next to your teams.'}</p>${leaguePills}<div class="search" style="margin:0 0 12px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg><input id="onbq" type="search" placeholder="${n === 0 ? 'Search teams' : 'Search players'}" autocomplete="off"></div><div id="onbList" class="onb-list">${Array.from({ length: 6 }, () => '<div class="skel row" style="margin:0 0 8px"></div>').join('')}</div><div class="onb-foot"><button class="btn ghost" data-act="onb-next" data-step="${n + 1}">${n === 0 ? 'Skip' : 'Skip'}</button><button class="btn" data-act="onb-next" data-step="${n + 1}" id="onbNext">Continue</button></div></div>`, { full: true });
+      const list = document.getElementById('onbList'); const inp = document.getElementById('onbq');
+      if (n === 0) {
+        const [idx, st] = await Promise.all([V.teamsIndex(L), HW.standings(L).catch(() => null)]);
+        const all = Object.values(idx).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        const paint = () => { const q = inp.value.trim().toLowerCase(); const rows = all.filter(tm => !q || `${tm.name} ${tm.abbr}`.toLowerCase().includes(q)).slice(0, 80); list.innerHTML = `<div class="onb-grid">${rows.map(tm => { const on = HW.favs.has(lk, tm.id); const r = st && st.byId && st.byId[tm.id]; return `<button class="onb-team${on ? ' on' : ''}" data-act="fav" data-lk="${lk}" data-id="${esc(tm.id)}" data-name="${esc(tm.short)}" aria-pressed="${on}"><span class="logo"><img src="${esc(tm.logo || '')}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"></span><b>${esc(tm.short || tm.name)}</b><span>${r ? `${r.w}-${r.l}` : ''}</span><i></i></button>`; }).join('')}</div>`; };
+        paint(); inp.addEventListener('input', paint);
+        $panel.addEventListener('rivl:fav', () => { const nn = (HW.favs.all()[lk] || []).length; document.getElementById('onbNext').textContent = nn ? `Continue with ${nn}` : 'Continue'; }, { once: false });
+      } else {
+        const [lp, idx] = await Promise.all([L.sport === 'basketball' ? HW.leaguePlayers(L).catch(() => null) : null, V.teamsIndex(L)]);
+        const rows0 = lp ? lp.rows.slice().sort((a, b) => b.pts - a.pts) : [];
+        const paint = () => { const q = inp.value.trim().toLowerCase(); const rows = rows0.filter(p => !q || `${p.name} ${p.team}`.toLowerCase().includes(q)).slice(0, q ? 60 : 30); list.innerHTML = rows.length ? `<div class="rows">${rows.map(p => { const tm = idx[p.teamId] || {}; const on = V.fplayers.has(lk, p.id); const snap = { lk, id: p.id, name: p.name, short: p.short || p.name, img: p.img, team: p.team, color: tm.color || '#2A2D33' }; return `<div class="row prow"><span class="hs" style="--tc:${esc(tm.color || '#2A2D33')};width:46px;height:46px">${p.img ? `<img src="${esc(p.img)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : ''}</span><span class="t"><b>${esc(p.name)}</b><span>${esc(tm.short || p.team)}, ${p.pts.toFixed(1)} ppg</span></span><button class="star${on ? ' on' : ''}" data-act="follow-player" data-snap='${esc(JSON.stringify(snap))}' aria-pressed="${on}" aria-label="Follow ${esc(p.name)}">${on ? '<svg viewBox="0 0 24 24" fill="currentColor"><path d="m12 2.8 2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.7l-5.9 3.1 1.2-6.5L2.5 9.7l6.6-.9z"/></svg>' : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="m12 2.8 2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.7l-5.9 3.1 1.2-6.5L2.5 9.7l6.6-.9z"/></svg>'}</button></div>`; }).join('')}</div>` : `<div class="empty"><b>No player stats yet</b><p style="margin:6px 0 0">${esc(L.label)} stats start once the season has games. You can follow players from any team page later.</p></div>`; };
+        paint(); inp.addEventListener('input', paint);
+      }
+    } else {
+      const done = standalone();
+      openPanel(`<div class="onb"><div class="onb-logo"><svg viewBox="0 0 250 123.41" fill="currentColor"><path d="M0 0H88.8A11.2 11.2 0 0 1 100 11.2V50.5A11.2 11.2 0 0 1 88.8 61.7H62.3L0 25.61ZM0 47.02L100 104.96V123.41H0ZM108 0H132V123.41H108ZM140 0H164.5L168.0 96L171.5 0H196L192 123.41H144ZM204 0H228V99.41H250V123.41H204Z"/></svg></div>${dots}<h2>${done ? "You're set" : 'Put RIVL on your home screen'}</h2><p>${done ? 'RIVL is on your home screen. Your teams and players are waiting on Home.' : 'It opens full screen like an app, with no browser bar, and your teams load first.'}</p>
+        ${done ? '' : `<div class="onb-install"><img src="img/icon-192.png" alt="" width="64" height="64"><div>${deferredInstall ? `<button class="btn" data-act="install" id="installBtn">Install RIVL</button>` : isIOS ? `<b>In Safari</b><ol><li>Tap the Share button</li><li>Choose <b>Add to Home Screen</b></li><li>Tap <b>Add</b></li></ol>` : `<b>In your browser menu</b><p style="margin:4px 0 0">Choose <b>Add to Home screen</b> (or <b>Install app</b>).</p>`}</div></div>`}
+        <div class="onb-foot"><span></span><button class="btn" data-act="onb-done">${done ? 'Open Home' : 'Done'}</button></div></div>`, { full: true });
+    }
+  }
+  V.onbStep = onbStep;
+
   /* ---------- boot ---------- */
-  render().then(poll);
+  render().then(() => { poll(); if (needsOnboarding()) onbStep(0); });
+  /* install bar on Home while the app isn't on the home screen yet */
+  const origRender = render;
+  document.addEventListener('rivl:rendered', () => {
+    if (!current || current.name !== 'home' || standalone() || store.get('v5:installDismissed', 0) || !store.get('v5:onboarded', false)) return;
+    if (document.getElementById('installBar')) return;
+    const bar = document.createElement('div'); bar.id = 'installBar'; bar.className = 'installbar';
+    bar.innerHTML = `<img src="img/icon-192.png" alt="" width="36" height="36"><div><b>Add RIVL to your home screen</b><span>Opens full screen, your teams first.</span></div><button class="btn" data-act="install">${deferredInstall ? 'Install' : 'How'}</button><button class="ib" data-act="install-later" aria-label="Not now"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>`;
+    $main.prepend(bar);
+  });
 })();
