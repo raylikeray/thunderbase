@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<base href="../">
+<title>RIVL</title>
+<meta name="description" content="RIVL: basketball, one screen. NBA, WNBA and college basketball with live scores, standings, players and your teams first.">
+<meta name="theme-color" content="#000000">
+<meta name="color-scheme" content="dark light">
+<link rel="icon" href="v5/img/mark.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="v5/img/apple-touch-icon.png">
+<link rel="manifest" href="v5/manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="RIVL">
+<meta name="application-name" content="RIVL">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://site.api.espn.com" crossorigin>
+<link rel="preconnect" href="https://a.espncdn.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;700;800;900&family=Big+Shoulders+Display:wght@700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="v5/app.css?v=1">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<div class="app">
+  <header class="top" id="top">
+    <a class="lockup" href="#home" aria-label="RIVL home">
+      <svg viewBox="0 0 250 123.41" fill="currentColor" aria-hidden="true"><path d="M0 0H88.8A11.2 11.2 0 0 1 100 11.2V50.5A11.2 11.2 0 0 1 88.8 61.7H62.3L0 25.61ZM0 47.02L100 104.96V123.41H0ZM108 0H132V123.41H108ZM140 0H164.5L168.0 96L171.5 0H196L192 123.41H144ZM204 0H228V99.41H250V123.41H204Z"/></svg>
+    </a>
+    <div class="sp">
+      <span class="fresh" id="fresh" role="status" aria-live="polite" title="Data freshness"><span class="fresh-dot"></span></span>
+      <a class="ib" href="#search" aria-label="Search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg></a>
+      <button class="ib" id="bell" data-act="updates" aria-label="Updates for my teams"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 1.5h-15z"/><path d="M10 21h4"/></svg></button>
+    </div>
+  </header>
+  <nav class="pills" id="pills" aria-label="Leagues"></nav>
+  <main id="main" tabindex="-1"></main>
+  <footer class="foot">
+    <p>RIVL is a personal fan project. Scores, stats, injuries and news come live from ESPN's public feeds; names and logos belong to the leagues and their teams. Forecasts are RIVL's own estimates and not betting advice. All times Central.</p>
+  </footer>
+</div>
+<nav class="tabs" id="tabs" aria-label="Main">
+  <a class="tab" data-tab="home" href="#home"><svg class="o" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5.5 9.5V21h13V9.5"/></svg><svg class="f" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.6 2.5 10.4V21h6.7v-6h5.6v6h6.7V10.4z"/></svg><span>Home</span></a>
+  <a class="tab" data-tab="scores" href="#scores"><svg class="o" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M12 5v14M3 12h18"/></svg><svg class="f" viewBox="0 0 24 24" fill="currentColor"><path d="M5.5 4h13A2.5 2.5 0 0 1 21 6.5v4.5h-8V4zM11 4v7H3V6.5A2.5 2.5 0 0 1 5.5 4zM3 13h8v7H5.5A2.5 2.5 0 0 1 3 17.5zM13 13h8v4.5a2.5 2.5 0 0 1-2.5 2.5H13z"/></svg><span>Scores</span></a>
+  <a class="tab" data-tab="standings" href="#standings"><svg class="o" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 20v-7M10 20V5M16 20v-9M22 20H2"/></svg><svg class="f" viewBox="0 0 24 24" fill="currentColor"><path d="M2.5 13h3v7h-3zM8.5 4h3v16h-3zM14.5 10h3v10h-3zM2 20.5h18v1.6H2z"/></svg><span>Standings</span></a>
+  <a class="tab" data-tab="players" href="#players"><svg class="o" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="8" r="3.8"/><path d="M4.5 20c0-3.8 3.3-6 7.5-6s7.5 2.2 7.5 6"/></svg><svg class="f" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="8" r="4.2"/><path d="M4 20.5c0-4.2 3.5-6.6 8-6.6s8 2.4 8 6.6z"/></svg><span>Players</span></a>
+  <a class="tab" data-tab="teams" href="#teams"><svg class="o" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M12 3 4 7v5c0 4.6 3.4 8 8 9.5 4.6-1.5 8-4.9 8-9.5V7z"/></svg><svg class="f" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.4 3.2 6.8v5.3c0 5 3.6 8.7 8.8 10.4 5.2-1.7 8.8-5.4 8.8-10.4V6.8z"/></svg><span>Teams</span></a>
+</nav>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="v5/config.js?v=1"></script>
+<script src="js/core.js?v=33"></script>
+<script src="v5/views.js?v=1"></script>
+<script src="v5/app.js?v=1"></script>
+</body>
+</html>
