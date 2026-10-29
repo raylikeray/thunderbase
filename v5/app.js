@@ -60,10 +60,11 @@
   async function poll() {
     clearTimeout(pollT);
     const today = todayCT(); const r = current || route();
-    const order = [r.lk, ...ORDER.filter(k => k !== r.lk)];
-    let anyLive = false, failed = false;
+    poll.n = (poll.n || 0) + 1;
+    const order = [r.lk, ...(poll.n % 4 === 1 ? ORDER.filter(k => k !== r.lk) : [])];   // the other leagues every fourth pass: fewer bursts at the feed
+    let anyLive = ORDER.some(k => k !== r.lk && S.today[k].some(isLive)), failed = false;
     for (const k of order) {
-      try { const g = await scoreboard(LEAGUES[k], today, k === r.lk ? 20000 : 60000); S.today[k] = g; if (g.some(isLive)) anyLive = true; }
+      try { const g = await scoreboard(LEAGUES[k], today, k === r.lk ? 20000 : 120000); S.today[k] = g; if (g.some(isLive)) anyLive = true; }
       catch { failed = true; }
     }
     if (!failed) lastOk = Date.now();

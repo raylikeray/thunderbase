@@ -5,7 +5,7 @@
   const { LEAGUES, ORDER, esc, j, jSoft, todayCT, addDays, dayLabel, relDay, tip, dateShort, ago, pct, ordinal, sign, hx, store, API, WEB,
     favs, parseEvent, isLive, isFav, interest, scoreboard, standings, rankings, injuries, forecast, forecastCtx, leaguePlayers, watchFor, S, ymdOf } = HW;
   const V = HW.v5;
-  const { h: H, logo, headshot, chev, sec, empty, skeleton, href, safeF, gameCard, heroCard, teamInfo, teamsIndex, fplayers, starSvg, starLine, tvLabel, confName } = V._;
+  const { h: H, logo, headshot, chev, sec, empty, skeleton, href, safeF, gameCard, heroCard, teamInfo, teamsIndex, fplayers, starSvg, starLine, tvLabel, confName, dayUTC } = V._;
   const $main = document.getElementById('main');
   S.news = S.news || {}; S.videos = S.videos || {};
   const hide = `onerror="this.style.visibility='hidden'"`;
@@ -113,7 +113,8 @@
     const schedHtml = evs.length ? sec('Schedule', `${evs.length} games`, (restUp.length || restDone.length) ? `<button data-act="expand" data-more="sched">Full season</button>` : '') + `<div class="rows sched">${soon.map(g => sRow(g, false)).join('')}${restUp.map(g => sRow(g, true)).join('')}${recent.map(g => sRow(g, false)).join('')}${restDone.map(g => sRow(g, true)).join('')}</div>` : '';
     // injuries, news
     const il = inj && inj.byTeam[String(id)] && inj.byTeam[String(id)].list || [];
-    const injHtml = il.length ? sec('Injuries') + `<div class="rows">${il.map(x => { const a = x.athlete || {}; const stt = x.status || ''; const cls = /out/i.test(stt) ? 'out' : /day|quest|doubt/i.test(stt) ? 'q' : 'ok'; const det = x.details || {}; const why = [det.type, det.returnDate ? 'back around ' + dateShort(det.returnDate) : (x.shortComment || '').replace(/\s+/g, ' ')].filter(Boolean).join(', '); return `<a class="row" href="${href.player(lk, a.id)}">${headshot(a.headshot && (a.headshot.href || a.headshot), color, 36)}<span class="t"><b>${esc(a.displayName || '')}</b><span>${esc(why)}</span></span><span class="tag ${cls}">${esc(stt)}</span></a>`; }).join('')}</div>` : '';
+    S.injuries = S.injuries || {};
+    const injHtml = il.length ? sec('Injuries') + `<div class="rows">${il.map(x => { const a = x.athlete || {}; const key = `t:${id}:${a.id}`; S.injuries[key] = { x, team: { id: String(id), short: t0.shortDisplayName || t0.name, color } }; const stt = x.status || ''; const cls = /out/i.test(stt) ? 'out' : /day|quest|doubt/i.test(stt) ? 'q' : 'ok'; const det = x.details || {}; const why = [det.type || det.detail, det.returnDate ? 'back around ' + dayUTC(det.returnDate) : ''].filter(Boolean).join(', '); return `<button class="row" data-act="injury" data-key="${esc(key)}">${headshot(a.headshot && (a.headshot.href || a.headshot), color, 44)}<span class="t"><b>${esc(a.displayName || '')}</b><span>${esc(why || (x.shortComment || '').slice(0, 80))}</span></span><span class="tag ${cls}">${esc(stt)}</span></button>`; }).join('')}</div>` : '';
     const arts = news && news.articles ? news.articles.filter(a => a.headline).slice(0, 6) : [];
     const newsHtml = arts.length ? sec('News') + `<div class="rows">${arts.map(a => newsRow(lk, a)).join('')}</div>` : '';
     $main.innerHTML = topbar(esc(r && r.group ? r.group : L.label), '#teams') + hero + strip + nextHtml + rosterHtml + schedHtml + injHtml + newsHtml;

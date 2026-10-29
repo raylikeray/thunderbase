@@ -474,3 +474,16 @@ html{touch-action:manipulation}
 .installbar b{display:block;font-size:14px}
 .installbar span{display:block;font-size:12.5px;color:var(--ink-3)}
 .installbar .btn{height:34px;padding:0 14px;font-size:13px}
+
+/* injury strip under a player hero */
+.injstrip{display:flex;align-items:center;gap:12px;width:100%;margin:10px var(--gut-r) 0 var(--gut);width:calc(100% - var(--gut) - var(--gut-r));padding:12px 10px 12px 14px;border-radius:14px;background:linear-gradient(180deg,var(--surf-2),var(--surf));box-shadow:inset 0 0 0 1px var(--line),inset 3px 0 0 var(--loss);text-align:left;font:inherit;color:inherit}
+.injstrip.q{box-shadow:inset 0 0 0 1px var(--line),inset 3px 0 0 var(--warn)}
+.injstrip.ok{box-shadow:inset 0 0 0 1px var(--line),inset 3px 0 0 var(--win)}
+.injstrip .t{flex:1;min-width:0}
+.injstrip .t b{display:block;font-size:15px;font-weight:700}
+.injstrip .t span{display:block;font-size:13px;color:var(--ink-2);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.injstrip .tag{flex:none}
+.injstrip .chev{color:var(--ink-3)}
+.injstrip .chev svg{width:18px;height:18px}
+.ehero .acts{flex-wrap:nowrap}
+.ehero .acts button,.ehero .acts a{padding:0 13px}
