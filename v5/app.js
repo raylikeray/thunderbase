@@ -40,6 +40,7 @@
     const r = route(); const my = ++seq; current = r;
     const leagueScreen = SCREENS.includes(r.name);
     if (leagueScreen) store.set('v5:screen', r.name);
+    if (r.name !== 'scores') store.set('v5:date', todayCT());
     document.getElementById('top').hidden = !leagueScreen && r.name !== 'search';
     paintPills(r.lk, leagueScreen);
     paintTabs(leagueScreen ? r.name : (r.name === 'player' ? 'players' : r.name === 'team' ? 'teams' : r.name === 'game' ? 'scores' : ''));
@@ -66,7 +67,7 @@
     if (!failed) lastOk = Date.now();
     $fresh.classList.toggle('is-live', anyLive); $fresh.classList.toggle('is-err', failed && !lastOk); $fresh.classList.toggle('is-stale', failed && !!lastOk); $fresh.title = anyLive ? 'Games in progress' : failed ? 'Feed slow, showing the last good data' : 'Up to date';
     if (SCREENS.includes((current || route()).name)) paintPills((current || route()).lk, true);
-    if (anyLive && current && current.name === 'home') refreshCards();
+    if (anyLive && current && (current.name === 'home' || current.name === 'scores')) refreshCards();
     pollT = setTimeout(poll, anyLive ? 25000 : 90000);
   }
   /* swap live scores into the cards on screen without repainting the whole page */
@@ -117,6 +118,7 @@
       else if (navigator.clipboard) navigator.clipboard.writeText(url).then(() => toast('Link copied')).catch(() => toast(url));
     }
     if (a === 'updates') { e.preventDefault(); toast('Updates come in a later step'); }
+    if (a === 'date') { e.preventDefault(); store.set('v5:date', act.dataset.ymd); render(); }
   });
 
   /* ---------- boot ---------- */
