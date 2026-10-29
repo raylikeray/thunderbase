@@ -108,7 +108,7 @@ async function runRatings() {
           if (gp != null && gp !== '') { ep = parseFloat(gp) / 100; espnN++; } else if (wp0 != null) { ep = +wp0; espnN++; }
           const pc = s && Array.isArray(s.pickcenter) && s.pickcenter[0]; if (pc && pc.details) line = pc.details;
           await sleep(120); }
-        st.record.push({ id: g.id, date: d, h: g.home.abbr, a: g.away.abbr, hid: g.home.id, aid: g.away.id, hs: g.home.score, as: g.away.score, p: +f.p.toFixed(4), ep: ep != null ? +ep.toFixed(4) : null, line, n: g.neutral ? 1 : 0, rh: prev.has(g.home.id) ? 1 : 0, ra: prev.has(g.away.id) ? 1 : 0 });
+        st.record.push({ id: g.id, date: d, h: g.home.abbr, a: g.away.abbr, hid: g.home.id, aid: g.away.id, hs: g.home.score, as: g.away.score, p: +f.p.toFixed(4), m: +f.margin.toFixed(2), ep: ep != null ? +ep.toFixed(4) : null, line, n: g.neutral ? 1 : 0, rh: prev.has(g.home.id) ? 1 : 0, ra: prev.has(g.away.id) ? 1 : 0 });
         update(L, st, g, P); st.processed[g.id] = 1; n++;
       }
       prev = new Set(games.filter(g => g.state !== 'pre').flatMap(g => [g.home.id, g.away.id]));
@@ -125,6 +125,9 @@ async function runRatings() {
 
 function writeRatings(L, st) {
   const lk = L.key, today = todayCT();
+  // the pregame margin behind every call, so the market blend can be scored too; older entries get it back from their chance
+  const P0 = paramsOf(L); const inv = p => { const q = Math.min(.995, Math.max(.005, p)); const z = P0.calib && isFinite(P0.calib.a) && P0.calib.a ? (Math.log(q / (1 - q)) - P0.calib.b) / P0.calib.a : Math.log(q / (1 - q)); const pr = 1 / (1 + Math.exp(-z)); let lo = -60, hi = 60; for (let i = 0; i < 40; i++) { const mid = (lo + hi) / 2; if (Phi(mid / P0.sd) < pr) lo = mid; else hi = mid; } return (lo + hi) / 2; };
+  (st.record || []).forEach(r => { if (r.m == null && r.p != null) r.m = +inv(r.p).toFixed(2); });
   // nightly snapshot of every rating, kept for 14 days, for the 7-day movers
   const snap = {}; Object.entries(st.elo).forEach(([id, v]) => snap[id] = Math.round(v.elo));
   st.history = st.history || {}; st.history[today] = snap;
