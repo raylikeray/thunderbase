@@ -16,7 +16,10 @@
   const mixTo = (c, to, k) => { const v = rgbOf(c); if (!v) return c; const m = x => Math.round(x + (to - x) * k); return `rgb(${m(v[0])},${m(v[1])},${m(v[2])})`; };
   const V_lift = c => { const l = lumOf(c); return l > 0.45 ? c : mixTo(c, 255, l < 0.15 ? 0.6 : 0.4); };
   const V_deep = c => { const l = lumOf(c); return l < 0.5 ? c : mixTo(c, 0, l > 0.75 ? 0.5 : 0.32); };
-  const scVars = t => { const c = teamColor(t); return `--tc:${esc(c)};--tcd:${esc(V_lift(c))};--tcl:${esc(V_deep(c))}`; };
+  /* teams whose signature colour is their secondary: their score takes that one so the Lakers read gold, not Jazz purple */
+  const SIG_ALT = { nba: { LAL: 1, IND: 1, DEN: 1, MIN: 1 }, wnba: { LA: 1, LAS: 1 } };
+  const scoreColor = (L, t) => { const alt = hx(t && t.alt); return alt && SIG_ALT[L.key] && SIG_ALT[L.key][t.abbr] ? alt : teamColor(t); };
+  const scVars = (t, L) => { const c = L ? scoreColor(L, t) : teamColor(t); return `--tc:${esc(c)};--tcd:${esc(V_lift(c))};--tcl:${esc(V_deep(c))}`; };
   const href = { player: (lk, id) => `#player/${lk}/${id}`, team: (lk, id) => `#team/${lk}/${id}`, game: (lk, id) => `#game/${lk}/${id}` };
   const hide = `onerror="this.style.visibility='hidden'"`;
   const logo = (src, size = '') => `<span class="logo ${size}"><img src="${esc(src || '')}" alt="" loading="lazy" ${hide}></span>`;
@@ -73,7 +76,7 @@
     const has = g.state !== 'pre' && t.score != null && other.score != null;
     const lo = has && t.score < other.score, lead = has && t.score > other.score;
     const sc = g.state === 'pre' ? '' : `<span class="sc${lead ? ' on' : ''}${lead && g.state === 'post' ? ' won' : ''}">${t.score == null ? '' : t.score}</span>`;
-    return `<div class="side${lo ? ' lo' : ''}" data-tid="${esc(t.id)}" style="${scVars(t)}">${logo(t.logo)}<span class="nm"><b>${t.rank ? `<i>${t.rank}</i>` : ''}${esc(t.short || t.name)}</b><span>${esc(recOf(t))}</span></span>${sc}</div>`;
+    return `<div class="side${lo ? ' lo' : ''}" data-tid="${esc(t.id)}" style="${scVars(t, L)}">${logo(t.logo)}<span class="nm"><b>${t.rank ? `<i>${t.rank}</i>` : ''}${esc(t.short || t.name)}</b><span>${esc(recOf(t))}</span></span>${sc}</div>`;
   }
   function gameCard(L, g, ctx, withForecast = true, timeOnly = false) {
     const f = withForecast && prefs.get('forecast') ? safeF(L, g, ctx) : null;
@@ -220,21 +223,40 @@
   /* ================= SCORES: every game, compact ================= */
   async function scores(lk) {
     const L = LEAGUES[lk]; const today = todayCT();
-    let ymd = store.get('v5:date', today); if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd) || Math.abs(new Date(ymd) - new Date(today)) > 8 * 864e5) ymd = today;
-    const days = Array.from({ length: 9 }, (_, i) => addDays(today, i - 4));
-    const strip = `<div class="dates" id="dates">${days.map(d => { const lab = d === today ? 'Today' : dayLabel(d, { weekday: 'short' }); return `<button class="day${d === ymd ? ' on' : ''}" data-act="date" data-ymd="${d}" aria-pressed="${d === ymd}"><em>${esc(lab)}</em><b>${+d.slice(8)}</b></button>`; }).join('')}</div>`;
+    let ymd = store.get('v5:date', today); if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd) || Math.abs(new Date(ymd) - new Date(today)) > 200 * 864e5) ymd = today;
+    const far = Math.abs(new Date(ymd) - new Date(today)) > 4 * 864e5; const center = far ? ymd : today;
+    const days = Array.from({ length: 9 }, (_, i) => addDays(center, i - 4));
+    const dayBtn = (d, lab) => `<button class="day${d === ymd ? ' on' : ''}" data-act="date" data-ymd="${d}" aria-pressed="${d === ymd}"><em>${esc(lab)}</em><b>${+d.slice(8)}</b></button>`;
+    const strip = `<div class="dates" id="dates">${far ? dayBtn(today, 'Today') + '<span class="gap"></span>' : ''}${days.map(d => dayBtn(d, d === today ? 'Today' : dayLabel(d, { weekday: 'short' }))).join('')}</div>`;
     const head = strip;
     $main.innerHTML = head + skeleton(4, 'card');
-    const [games, ctx] = await Promise.all([ymd === today && S.today[lk] && S.today[lk].length ? S.today[lk] : scoreboard(L, ymd).catch(() => null), forecastCtx(L, ymd).catch(() => null)]);
+    const [games, ctx, meta] = await Promise.all([ymd === today && S.today[lk] && S.today[lk].length ? S.today[lk] : scoreboard(L, ymd).catch(() => null), forecastCtx(L, ymd).catch(() => null), sbMeta(L, ymd)]);
     if (ymd === today && games) S.today[lk] = games;
     const el = $main.querySelector('#dates .on'); if (el) el.scrollIntoView({ inline: 'center', block: 'nearest' });
-    if (!games) { $main.innerHTML = head + empty("Couldn't load the scoreboard", '<p style="margin:6px 0 0">The feed didn\'t answer. It usually comes back within a minute.</p>'); return; }
-    if (!games.length) { $main.innerHTML = head + empty(`No ${L.label} games ${ymd === today ? 'today' : 'on ' + dayLabel(ymd, { weekday: 'long', month: 'short', day: 'numeric' })}`, L.offseason ? `<p style="margin:6px 0 0">${esc(L.offseason)}</p>` : ''); return; }
+    const phase = meta.phase ? `<p class="phase">${esc(L.label)} ${esc(meta.phase)}</p>` : '';
+    if (!games) { $main.innerHTML = head + phase + empty("Couldn't load the scoreboard", '<p style="margin:6px 0 0">The feed didn\'t answer. It usually comes back within a minute.</p>'); return; }
+    if (!games.length) {
+      // say when the next games are, and let the strip jump there; the season's calendar comes with the scoreboard
+      const next = meta.cal.find(d => d > ymd), last = meta.cal.filter(d => d < ymd).slice(-1)[0];
+      const when = next ? (next === addDays(today, 1) ? 'tomorrow' : next === today ? 'today' : `on ${dayLabel(next, { weekday: 'long', month: 'short', day: 'numeric' })}`) : '';
+      const body = next ? `<p style="margin:6px 0 0">Next ${esc(L.label)} games are ${esc(when)}.</p>` : meta.cal.length ? `<p style="margin:6px 0 0">The season is over${last ? `; the last games were ${esc(dayLabel(last, { month: 'long', day: 'numeric' }))}` : ''}. Next season shows here once the schedule is posted.</p>` : '';
+      $main.innerHTML = head + phase + empty(`No ${L.label} games ${ymd === today ? 'today' : 'on ' + dayLabel(ymd, { weekday: 'long', month: 'short', day: 'numeric' })}`, body, next ? `<button class="btn" data-act="date" data-ymd="${esc(next)}">Jump to ${esc(dayLabel(next, { weekday: 'short', month: 'short', day: 'numeric' }))}</button>` : '');
+      return;
+    }
     const by = st => games.filter(g => g.state === st).sort((a, b) => rankGame(b) - rankGame(a) || new Date(a.date) - new Date(b.date));
     const live = by('in'), pre = by('pre'), post = by('post');
     const block = (title, list) => list.length ? sec(title, `${list.length}`) + `<div class="games">${list.map(g => gameCard(L, g, ctx, false, true)).join('')}</div>` : '';
-    $main.innerHTML = head + block('Live', live) + block(ymd === today ? 'Upcoming' : 'Scheduled', pre) + block('Final', post);
+    $main.innerHTML = head + phase + block('Live', live) + block(ymd === today ? 'Upcoming' : 'Scheduled', pre) + block('Final', post);
     const el2 = $main.querySelector('#dates .on'); if (el2) el2.scrollIntoView({ inline: 'center', block: 'nearest' });
+  }
+  /* what else the scoreboard says: the league's game-day calendar and the part of the season it is (regular season, playoffs) */
+  async function sbMeta(L, ymd) {
+    const t = todayCT(); const d = await jSoft(`${API(L)}/scoreboard?dates=${HW.compact(ymd)}${L.sbParams}`, ymd === t ? 25000 : (ymd < t ? 3600000 : 300000));
+    const lg = d && d.leagues && d.leagues[0] || {};
+    const cal = (lg.calendar || []).map(x => typeof x === 'string' ? x : x && (x.startDate || x.date) || '').filter(Boolean).map(x => String(x).slice(0, 10)).sort();
+    const name = lg.season && lg.season.type && lg.season.type.name || '';
+    const phase = /post/i.test(name) ? 'Playoffs' : /pre/i.test(name) ? 'Preseason' : /off/i.test(name) ? 'Off-season' : '';
+    return { cal, phase };
   }
 
   /* ================= PLAYER ================= */
@@ -398,11 +420,15 @@
     const players = (d.athletes || []).flatMap(a => a.items ? a.items : [a]).filter(a => a && a.id).map(a => ({ lk: L.key, id: String(a.id), name: a.displayName, short: a.shortName || a.displayName, img: hsUrl(a), team: abbr, teamId: id, color, pos: a.position && a.position.abbreviation || '', jersey: a.jersey || '' }));
     return { team, players };
   }
-  function playerRow(p, { sub, on, extra = '' } = {}) {
+  /* a player row: in setup the whole row is the follow toggle; on the Players tab the row opens the profile and the star follows */
+  function playerRow(p, { sub, on, select = false } = {}) {
     const snap = { lk: p.lk, id: p.id, name: p.name, short: p.short || p.name, img: p.img || '', team: p.team || '', color: p.color || '#2A2D33' };
-    return `<div class="row prow"${extra}><a class="go" href="${href.player(p.lk, p.id)}" aria-label="${esc(p.name)}">${headshot(p.img, p.color, 46, p.name)}</a><a class="t" href="${href.player(p.lk, p.id)}"><b>${esc(p.name)}</b><span>${esc(sub || '')}</span></a><button class="star${on ? ' on' : ''}" data-act="follow-player" data-snap='${esc(JSON.stringify(snap))}' aria-pressed="${on}" aria-label="${on ? 'Unfollow' : 'Follow'} ${esc(p.name)}">${on ? starSvg : starLine}</button></div>`;
+    const star = `<span class="star${on ? ' on' : ''}">${on ? starSvg : starLine}</span>`;
+    if (select) return `<button class="row prow sel${on ? ' on' : ''}" data-act="follow-player" data-snap='${esc(JSON.stringify(snap))}' aria-pressed="${on}">${headshot(p.img, p.color, 46, p.name)}<span class="t"><b>${esc(p.name)}</b><span>${esc(sub || '')}</span></span>${star}</button>`;
+    return `<div class="row prow"><a class="go" href="${href.player(p.lk, p.id)}" aria-label="${esc(p.name)}">${headshot(p.img, p.color, 46, p.name)}</a><a class="t" href="${href.player(p.lk, p.id)}"><b>${esc(p.name)}</b><span>${esc(sub || '')}</span></a><button class="star${on ? ' on' : ''}" data-act="follow-player" data-snap='${esc(JSON.stringify(snap))}' aria-pressed="${on}" aria-label="${on ? 'Unfollow' : 'Follow'} ${esc(p.name)}">${on ? starSvg : starLine}</button></div>`;
   }
-  async function playerPicker(el, L, { following = false, leaders = true, limit = 8 } = {}) {
+  const lastName = n => { const w = String(n || '').replace(/\s+(Jr\.?|Sr\.?|II|III|IV)$/i, '').trim().split(/\s+/); return w[w.length - 1] || ''; };
+  async function playerPicker(el, L, { following = false, leaders = true, select = false } = {}) {
     const lk = L.key, pro = !/^ncaa/.test(lk);
     el.classList.add('pp');
     el.innerHTML = `<div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg><input type="search" placeholder="Search players, or a team to see its roster" autocomplete="off" aria-label="Search players"></div><div class="pp-list">${skeleton(6, 'row')}</div>`;
@@ -412,29 +438,28 @@
     const [lp, rosters] = await Promise.all([pro && leaders ? leaguePlayers(L).catch(() => null) : null, Promise.all(mine.map(id => rosterOf(L, id, idx).catch(() => null)))]);
     const ppg = {}; if (lp) lp.rows.forEach(r => { ppg[r.id] = r; });
     const line = p => { const r = ppg[p.id]; return r && r.gp ? `${r.pts.toFixed(1)} ppg` : ''; };
-    const byLine = (a, b) => ((ppg[b.id] || {}).pts || 0) - ((ppg[a.id] || {}).pts || 0) || (a.name || '').localeCompare(b.name || '');
+    const byLine = (a, b) => ((ppg[b.id] || {}).pts || 0) - ((ppg[a.id] || {}).pts || 0) || lastName(a.name).localeCompare(lastName(b.name)) || (a.name || '').localeCompare(b.name || '');
     const sections = rosters.filter(Boolean).map(r => ({ key: r.team.id, team: r.team, rows: r.players.slice().sort(byLine), open: false }));
     const missing = mine.filter((id, i) => !rosters[i]);
     const shown = () => new Set(sections.flatMap(s => s.rows.map(p => p.id)));
     const paint = () => {
       const q = inp.value.trim().toLowerCase();
       const fset = new Set(fplayers.all().filter(p => p.lk === lk).map(p => p.id));
-      const rowOf = (p, s) => playerRow(p, { sub: [posWord(p.pos), p.jersey ? `No. ${p.jersey}` : '', line(p)].filter(Boolean).join(', '), on: fset.has(p.id) });
+      const rowOf = (p, s) => playerRow(p, { sub: [posWord(p.pos), p.jersey ? `No. ${p.jersey}` : '', line(p)].filter(Boolean).join(', '), on: fset.has(p.id), select });
       const parts = [];
       if (q) {
         const teams = Object.values(idx).filter(t => `${t.name} ${t.short} ${t.abbr}`.toLowerCase().includes(q) && !sections.some(s => s.key === t.id)).sort((a, b) => (a.short || '').localeCompare(b.short || '')).slice(0, 5);
         if (teams.length) parts.push(sec('Teams', 'tap to see the roster') + `<div class="rows">${teams.map(t => `<button class="row" data-pp="browse" data-id="${esc(t.id)}">${logo(t.logo)}<span class="t"><b>${esc(t.name)}</b><span>Show the roster</span></span>${chev}</button>`).join('')}</div>`);
       }
-      if (following && !q) { const fl = fplayers.all().filter(p => p.lk === lk); if (fl.length) parts.push(sec('Following', `${fl.length}`) + `<div class="rows">${fl.map(p => playerRow(p, { sub: p.team || '', on: true })).join('')}</div>`); }
+      if (following && !q) { const fl = fplayers.all().filter(p => p.lk === lk); if (fl.length) parts.push(sec('Following', `${fl.length}`) + `<div class="rows">${fl.map(p => playerRow(p, { sub: p.team || '', on: true, select })).join('')}</div>`); }
       sections.forEach(s => {
         const rows = q ? s.rows.filter(p => `${p.name} ${s.team.name} ${s.team.abbr}`.toLowerCase().includes(q)) : s.rows; if (!rows.length) return;
-        const cut = q || s.open ? rows.length : Math.min(rows.length, limit);
-        parts.push(`<div class="sec pp-team"><h2>${logo(s.team.logo, 's')}${esc(s.team.short)}<small>${rows.length}</small></h2>${cut < rows.length ? `<button data-pp="open" data-key="${esc(s.key)}">Everyone</button>` : ''}</div><div class="rows">${rows.slice(0, cut).map(p => rowOf(p, s)).join('')}</div>`);
+        parts.push(`<div class="sec pp-team"><h2>${logo(s.team.logo, 's')}${esc(s.team.short)}<small>${rows.length}</small></h2></div><div class="rows">${rows.map(p => rowOf(p, s)).join('')}</div>`);
       });
       if (lp && leaders) {
         const have = shown(); const top = lp.rows.filter(p => !have.has(p.id) && (!q || `${p.name} ${p.team}`.toLowerCase().includes(q))).sort((a, b) => b.pts - a.pts);
         const cut = q || paint.topOpen ? Math.min(top.length, 100) : Math.min(top.length, 15);
-        if (top.length) parts.push(sec('Top scorers', 'this season', cut < top.length ? `<button data-pp="top">More</button>` : '') + `<div class="rows">${top.slice(0, cut).map(p => { const t = idx[p.teamId] || {}; return playerRow({ ...p, lk, color: t.color || '#2A2D33', team: t.short || p.team }, { sub: [t.short || p.team, posWord(p.pos).toLowerCase(), `${p.pts.toFixed(1)} ppg`].filter(Boolean).join(', '), on: fset.has(p.id) }); }).join('')}</div>`);
+        if (top.length) parts.push(sec('Top scorers', 'this season', cut < top.length ? `<button data-pp="top">More</button>` : '') + `<div class="rows">${top.slice(0, cut).map(p => { const t = idx[p.teamId] || {}; return playerRow({ ...p, lk, color: t.color || '#2A2D33', team: t.short || p.team }, { sub: [t.short || p.team, posWord(p.pos).toLowerCase(), `${p.pts.toFixed(1)} ppg`].filter(Boolean).join(', '), on: fset.has(p.id), select }); }).join('')}</div>`);
       }
       if (!parts.length) parts.push(q ? empty('No one matches', '<p style="margin:6px 0 0">Try a last name, or a team to see its whole roster.</p>')
         : mine.length ? empty("Couldn't load your teams' rosters", '<p style="margin:6px 0 0">The feed didn\'t answer. Search a team to try again.</p>')
@@ -446,11 +471,10 @@
     let t = null; inp.addEventListener('input', () => { clearTimeout(t); t = setTimeout(paint, 120); });
     el.addEventListener('click', async e => {
       const b = e.target.closest('[data-pp]'); if (!b) return; e.preventDefault();
-      if (b.dataset.pp === 'open') { const s = sections.find(x => x.key === b.dataset.key); if (s) s.open = true; paint(); }
-      else if (b.dataset.pp === 'top') { paint.topOpen = true; paint(); }
+      if (b.dataset.pp === 'top') { paint.topOpen = true; paint(); }
       else if (b.dataset.pp === 'browse') { b.querySelector('.t span').textContent = 'Loading…'; const r = await rosterOf(L, b.dataset.id, idx).catch(() => null); if (r) { sections.push({ key: r.team.id, team: r.team, rows: r.players.slice().sort(byLine), open: true }); inp.value = ''; } paint(); }
     });
-    const sync = () => { if (!el.isConnected) { document.removeEventListener('rivl:follow', sync); return; } const fset = new Set(fplayers.all().filter(p => p.lk === lk).map(p => p.id)); el.querySelectorAll('.star[data-act="follow-player"]').forEach(st => { let id = ''; try { id = JSON.parse(st.dataset.snap).id; } catch { } const on = fset.has(String(id)); st.classList.toggle('on', on); st.setAttribute('aria-pressed', String(on)); st.innerHTML = on ? starSvg : starLine; }); if (following && !inp.value) paint(); };
+    const sync = () => { if (!el.isConnected) { document.removeEventListener('rivl:follow', sync); return; } const fset = new Set(fplayers.all().filter(p => p.lk === lk).map(p => p.id)); el.querySelectorAll('[data-act="follow-player"]').forEach(b => { let id = ''; try { id = JSON.parse(b.dataset.snap).id; } catch { } const on = fset.has(String(id)); b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); const st = b.classList.contains('star') ? b : b.querySelector('.star'); if (st) { st.classList.toggle('on', on); st.innerHTML = on ? starSvg : starLine; } }); if (following && !inp.value) paint(); };
     document.addEventListener('rivl:follow', sync);
   }
   async function players(lk) {

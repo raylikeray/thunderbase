@@ -34,8 +34,11 @@
   --ring:rgba(10,11,14,.1);
   color-scheme:light;
 }
-*{box-sizing:border-box}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html{-webkit-text-size-adjust:100%;background:var(--bg)}
+a,button,img,.row,.game,.hero,.tab,.pill,.chip,.day,.onb-team{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.reader .body,.reader h1,.reader .dek,input{-webkit-user-select:text;user-select:text}
+a{-webkit-user-drag:none}
 body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.45 var(--ui);-webkit-font-smoothing:antialiased;min-height:100vh}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:40;background:var(--bg)}
 button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
@@ -61,11 +64,6 @@ table,.num{font-variant-numeric:tabular-nums}
 .ib:hover{color:var(--ink)}
 .ib svg{width:22px;height:22px}
 .ib.on{color:var(--ink)}
-.fresh{display:inline-flex;align-items:center;padding:0 8px}
-.fresh-dot{width:8px;height:8px;border-radius:50%;background:var(--ink-3)}
-.fresh.is-live .fresh-dot{background:var(--live);box-shadow:0 0 0 3px rgba(255,45,55,.2)}
-.fresh.is-stale .fresh-dot{background:var(--warn)}
-.fresh.is-err .fresh-dot{background:var(--loss)}
 
 .pills{display:flex;gap:8px;padding:4px var(--gut-r) 14px var(--gut);overflow-x:auto;scrollbar-width:none}
 .pills::-webkit-scrollbar{display:none}
@@ -234,7 +232,7 @@ table,.num{font-variant-numeric:tabular-nums}
 .chips{display:flex;gap:6px;padding:0 var(--gut-r) 12px var(--gut);overflow-x:auto;scrollbar-width:none}
 .chips::-webkit-scrollbar{display:none}
 .chip{flex:none;height:32px;padding:0 13px;border-radius:999px;background:var(--surf);color:var(--ink-2);font-size:13px;font-weight:700;white-space:nowrap}
-.chip.on,.chip[aria-pressed="true"]{background:var(--surf-3);color:var(--ink)}
+.chip.on,.chip[aria-pressed="true"],.chip[aria-checked="true"]{background:var(--ink);color:var(--bg);box-shadow:0 6px 16px -10px rgba(0,0,0,.5)}
 
 /* donut */
 .donut{display:flex;align-items:center;gap:18px;padding:4px var(--gut-r) 6px var(--gut)}
@@ -535,3 +533,16 @@ html{touch-action:manipulation}
 .pp .sec.pp-team h2 .logo img{width:100%;height:100%}
 .onb .pp .rows,.onb .pp .sec,.onb .pp .empty,.onb .pp .foot{padding-left:0;padding-right:0;margin-left:0;margin-right:0}
 .onb .pp .sec{padding-top:18px}
+
+/* setup rows: the whole row toggles; a followed row is outlined like a chosen team tile */
+button.row.prow.sel{border-radius:14px;padding:10px 10px;margin:0 0 6px;border-bottom:0;background:linear-gradient(180deg,var(--surf-2),var(--surf));box-shadow:var(--edge);align-items:center}
+button.row.prow.sel .t{text-align:left}
+button.row.prow.sel .star{display:grid;place-items:center;width:40px;height:40px;color:var(--ink-3);margin-right:0}
+button.row.prow.sel .star svg{width:22px;height:22px}
+button.row.prow.sel.on{box-shadow:var(--edge),inset 0 0 0 2px var(--ink)}
+button.row.prow.sel.on .star{color:var(--ink)}
+button.row.prow.sel:active{transform:scale(.985)}
+.onb .pp .rows{padding:0}
+/* season phase under the date strip */
+.phase{margin:4px var(--gut-r) 0 var(--gut);padding:0;font-size:12.5px;font-weight:800;color:var(--ink-3);letter-spacing:.04em;text-transform:uppercase}
+.dates .gap{flex:none;width:1px;align-self:stretch;background:var(--line-2);margin:6px 4px}
