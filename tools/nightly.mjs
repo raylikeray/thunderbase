@@ -215,7 +215,8 @@ function compactEvent(e) {
   if (!home || !away || !home.team || !away.team) return null;
   const st = (c.status || e.status || {}).type || {}; const sc = x => x.score != null && x.score !== '' ? +(typeof x.score === 'object' ? x.score.displayValue : x.score) : null;
   const note = c.notes && c.notes[0] && c.notes[0].headline || '';
-  return { id: String(e.id), d: e.date ? ymdFmt.format(new Date(e.date)) : '' /* the game's date in Central time, as RIVL counts days */, h: String(home.team.id), a: String(away.team.id), hs: sc(home), as: sc(away), st: st.state || 'pre', n: c.neutralSite ? 1 : 0, t: e.season && e.season.type != null ? +e.season.type : 2, x: /championship/i.test(note) && /cup|tournament/i.test(note) ? 1 : 0 };
+  const cup = /cup|tournament/i.test(note) ? note.slice(0, 60) : '';   // the NBA Cup's own note ("Group Play - East Group A", "Quarterfinals", "Championship"), kept so the groups can be built from results
+  return { id: String(e.id), d: e.date ? ymdFmt.format(new Date(e.date)) : '' /* the game's date in Central time, as RIVL counts days */, h: String(home.team.id), a: String(away.team.id), hs: sc(home), as: sc(away), st: st.state || 'pre', n: c.neutralSite ? 1 : 0, t: e.season && e.season.type != null ? +e.season.type : 2, x: /championship/i.test(note) && /cup|tournament/i.test(note) ? 1 : 0, ...(cup ? { cup } : {}) };
 }
 async function runSchedule() {
   for (const lk of Object.keys(SEASON_END)) {
@@ -228,6 +229,8 @@ async function runSchedule() {
     const prev = readJson(`data/${lk}/schedule.json`, null); const keepBefore = addDays(todayCT(), -3);
     const games = []; const seen = new Set();
     if (prev && prev.season === L.seasonStart) (prev.games || []).forEach(g => { if (g.st === 'post' && g.hs != null && g.as != null && g.d < keepBefore) { seen.add(g.id); games.push(g); } });   // a postponed game is filed as post with no score: never keep it, it comes back on its new date
+    const refresh = prev && !(prev.games || []).some(g => g.cup) && (prev.games || []).length;   // once: re-read the whole season so past games carry their cup note
+    if (refresh) { games.length = 0; seen.clear(); }
     let d = games.length ? keepBefore : L.seasonStart; if (d < addDays(todayCT(), -200)) d = addDays(todayCT(), -200);
     let got = 0, missed = 0, calls = 0;
     const take = evs => evs.forEach(e => { const g = compactEvent(e); if (g && !seen.has(g.id)) { seen.add(g.id); games.push(g); got++; } });
