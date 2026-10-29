@@ -134,7 +134,8 @@
       const on = HW.favs.toggle(act.dataset.lk, act.dataset.id);
       act.setAttribute('aria-pressed', String(on)); act.classList.toggle('on', on);
       const star = on ? `<svg viewBox="0 0 24 24" fill="currentColor"><path d="m12 2.8 2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.7l-5.9 3.1 1.2-6.5L2.5 9.7l6.6-.9z"/></svg>` : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="m12 2.8 2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.7l-5.9 3.1 1.2-6.5L2.5 9.7l6.6-.9z"/></svg>`;
-      act.innerHTML = act.classList.contains('star') ? star : star + (on ? 'Following' : 'Follow');
+      // a setup tile keeps its logo, name and record; only its check changes. Stars and the hero button redraw.
+      if (!act.classList.contains('onb-team')) act.innerHTML = act.classList.contains('star') ? star : star + (on ? 'Following' : 'Follow');
       toast(on ? `Following ${act.dataset.name || 'team'}` : `Unfollowed ${act.dataset.name || 'team'}`);
       $main.dispatchEvent(new CustomEvent('rivl:fav')); $panel.dispatchEvent(new CustomEvent('rivl:fav'));
     }
@@ -233,7 +234,7 @@
       const list = document.getElementById('onbList'); const inp = document.getElementById('onbq');
       if (n === 0) {
         const [idx, st] = await Promise.all([V.teamsIndex(L), HW.standings(L).catch(() => null)]);
-        const all = Object.values(idx).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        const all = Object.values(idx).sort((a, b) => (a.short || a.name || '').localeCompare(b.short || b.name || ''));   // by the name on the tile
         const paint = () => { const q = inp.value.trim().toLowerCase(); const rows = all.filter(tm => !q || `${tm.name} ${tm.abbr}`.toLowerCase().includes(q)).slice(0, 80); list.innerHTML = `<div class="onb-grid">${rows.map(tm => { const on = HW.favs.has(lk, tm.id); const r = st && st.byId && st.byId[tm.id]; return `<button class="onb-team${on ? ' on' : ''}" data-act="fav" data-lk="${lk}" data-id="${esc(tm.id)}" data-name="${esc(tm.short)}" aria-pressed="${on}"><span class="logo"><img src="${esc(tm.logo || '')}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"></span><b>${esc(tm.short || tm.name)}</b><span>${r ? `${r.w}-${r.l}` : ''}</span><i></i></button>`; }).join('')}</div>`; };
         paint(); inp.addEventListener('input', paint);
       } else {
