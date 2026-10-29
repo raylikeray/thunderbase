@@ -11,7 +11,7 @@ const { LEAGUES, ORDER, ESPN, TZ } = createRequire(import.meta.url)('../js/confi
 const mode = process.argv[2] || 'ratings';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 async function get(u, tries = 2) { for (let i = 0; ; i++) { try { const r = await fetch(u, { headers: { 'user-agent': 'tipoff-nightly' } }); if (!r.ok) throw new Error(u + ' ' + r.status); return await r.json(); } catch (e) { if (i >= tries) throw e; await sleep(800 * (i + 1)); } } }
-const soft = async u => { try { return await get(u); } catch { return null; } };
+const soft = async u => { try { return await get(u); } catch (e) { console.log('fetch failed:', e.message); return null; } };
 const ymdFmt = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
 const todayCT = () => { const d = new Date(); const h = +new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour: 'numeric', hour12: false }).format(d) % 24; const y = ymdFmt.format(d); return h < 4 ? addDays(y, -1) : y; };
 const addDays = (ymd, n) => { const [y, m, d] = ymd.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10); };
@@ -220,20 +220,26 @@ async function runSchedule() {
     if (todayCT() < addDays(L.seasonStart, -7)) { console.log(lk, 'season not yet scheduled'); continue; }
     const params = (L.sbParams || '').replace(/&limit=\d+/, '');
     const span = async (a, b, lim) => { const d = await soft(`${API(L)}/scoreboard?dates=${compact(a)}-${compact(b)}${params}&limit=${lim}`); return d && Array.isArray(d.events) ? d.events : null; };
-    const games = []; const seen = new Set(); let ok = true;
-    let d = L.seasonStart; if (d < addDays(todayCT(), -200)) d = addDays(todayCT(), -200);
+    // last night's copy: finished games older than three days are kept as they are, everything from there on is read again
+    const prev = readJson(`data/${lk}/schedule.json`, null); const keepBefore = addDays(todayCT(), -3);
+    const games = []; const seen = new Set();
+    if (prev && prev.season === L.seasonStart) (prev.games || []).forEach(g => { if (g.st === 'post' && g.d < keepBefore) { seen.add(g.id); games.push(g); } });
+    let d = games.length ? keepBefore : L.seasonStart; if (d < addDays(todayCT(), -200)) d = addDays(todayCT(), -200);
+    let got = 0, missed = 0, calls = 0;
+    const take = evs => evs.forEach(e => { const g = compactEvent(e); if (g && !seen.has(g.id)) { seen.add(g.id); games.push(g); got++; } });
     while (d <= end) {
       const [yy, mm] = d.split('-').map(Number); const last = `${d.slice(0, 7)}-${String(new Date(Date.UTC(yy, mm, 0)).getUTCDate()).padStart(2, '0')}`; const b = last > end ? end : last;
-      let evs = await span(d, b, 1000);
-      if (!evs || evs.length >= 1000) { evs = []; let a = d; while (a <= b) { const w = addDays(a, 6) > b ? b : addDays(a, 6); const part = await span(a, w, 400); if (!part) { ok = false; break; } evs.push(...part); a = addDays(w, 1); await sleep(150); } }
-      if (!ok) break;
-      evs.forEach(e => { const g = compactEvent(e); if (g && !seen.has(g.id)) { seen.add(g.id); games.push(g); } });
+      let evs = await span(d, b, 1000); calls++;
+      if (evs && evs.length < 1000) take(evs);
+      else {   // the month in one go didn't work: the same way the ratings job reads the season, a day at a time
+        for (let x = d; x <= b; x = addDays(x, 1)) { const day = await soft(`${API(L)}/scoreboard?dates=${compact(x)}${L.sbParams || ''}`); calls++; if (day && Array.isArray(day.events)) take(day.events); else missed++; await sleep(120); }
+      }
       d = addDays(last, 1); await sleep(200);
     }
-    if (!ok || !games.length) { console.log(lk, 'schedule: feed did not answer, keeping the last copy'); continue; }
+    if (!games.length) { console.log(lk, `schedule: nothing came back (${calls} calls)`); continue; }
     games.sort((a, b) => a.d.localeCompare(b.d) || a.id.localeCompare(b.id));
-    writeJson(`data/${lk}/schedule.json`, { generated: new Date().toISOString(), season: L.seasonStart, through: end, games });
-    console.log(lk, `schedule: ${games.length} games, ${games.filter(g => g.st === 'post').length} final, ${games.filter(g => g.st !== 'post').length} to play`);
+    writeJson(`data/${lk}/schedule.json`, { generated: new Date().toISOString(), season: L.seasonStart, through: end, games, missedDays: missed });
+    console.log(lk, `schedule: ${games.length} games (${got} read tonight, ${calls} calls, ${missed} days missed), ${games.filter(g => g.st === 'post').length} final, ${games.filter(g => g.st !== 'post').length} to play`);
   }
 }
 
