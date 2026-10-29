@@ -152,7 +152,9 @@
     if (a === 'install') { e.preventDefault(); install(); }
     if (a === 'install-later') { e.preventDefault(); store.set('v5:installDismissed', Date.now()); const b = document.getElementById('installBar'); if (b) b.remove(); }
     if (a === 'panel-close') { e.preventDefault(); closePanel(); const to = act.getAttribute('href'); if (to && to.startsWith('#')) location.hash = to; }
-    if (a === 'date') { e.preventDefault(); store.set('v5:date', act.dataset.ymd); render(); }
+    if (a === 'date') { e.preventDefault(); store.set('v5:date', act.dataset.ymd); closePanel(); if (current && current.name === 'scores') render(); else location.hash = '#scores'; }
+    if (a === 'calendar') { e.preventDefault(); openCalendar(act.dataset.ymd || store.get('v5:date', todayCT())); }
+    if (a === 'cal-nav') { e.preventDefault(); openCalendar(act.dataset.ym + '-01', true); }
   });
 
   /* ---------- video sheet: ESPN's own clip files, played here; the ESPN page is the fallback ---------- */
@@ -185,6 +187,25 @@
   function openPanel(html, { full = false } = {}) { $panel.querySelector('.panel-in').innerHTML = html; $panel.classList.toggle('full', full); $panel.hidden = false; document.body.classList.add('noscroll'); $panel.querySelector('.panel-in').scrollTop = 0; }
   function closePanel() { if ($panel.hidden) return; $panel.hidden = true; $panel.classList.remove('full'); document.body.classList.remove('noscroll'); }
   $panel.addEventListener('click', e => { if (e.target === $panel && !$panel.classList.contains('full')) closePanel(); });
+
+  /* the month at a glance: games each day, a mark on the days your teams play; tap a day to go there */
+  async function openCalendar(ymd, keep = false) {
+    const lk = current ? current.lk : 'nba'; const L = LEAGUES[lk]; const today = todayCT(); const sel = store.get('v5:date', today);
+    const ym = ymd.slice(0, 7); const [y, m] = ym.split('-').map(Number);
+    const first = new Date(Date.UTC(y, m - 1, 1)); const last = new Date(Date.UTC(y, m, 0)).getUTCDate(); const lead = first.getUTCDay();
+    const prev = `${m === 1 ? y - 1 : y}-${String(m === 1 ? 12 : m - 1).padStart(2, '0')}`, next = `${m === 12 ? y + 1 : y}-${String(m === 12 ? 1 : m + 1).padStart(2, '0')}`;
+    const title = first.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+    const grid = (days) => Array.from({ length: lead }, () => '<span class="cd pad"></span>').concat(Array.from({ length: last }, (_, i) => { const d = `${ym}-${String(i + 1).padStart(2, '0')}`; const info = days && days[d]; const n = info ? info.n : 0; const cls = ['cd', d === today ? 'today' : '', d === sel ? 'on' : '', days && !n ? 'off' : '', info && info.mine ? 'mine' : ''].filter(Boolean).join(' '); return `<button class="${cls}" data-act="date" data-ymd="${d}"${days && !n ? ' disabled' : ''}><b>${i + 1}</b><span>${days ? (n ? `${info.mine ? '<i></i>' : ''}${n}` : '') : '·'}</span></button>`; })).join('');
+    const html = (days, note) => `<button class="ib close" data-act="panel-close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      <div class="cal-h"><button class="ib" data-act="cal-nav" data-ym="${prev}" aria-label="Previous month"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg></button><h3>${esc(title)}<small>${esc(L.label)}</small></h3><button class="ib" data-act="cal-nav" data-ym="${next}" aria-label="Next month"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></button></div>
+      <div class="cal-w">${['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(w => `<span>${w}</span>`).join('')}</div>
+      <div class="cal-g">${grid(days)}</div>
+      <p class="cal-f"><i class="dot"></i> your teams play${note ? ` · ${esc(note)}` : ''}</p>`;
+    if (!keep || $panel.hidden) openPanel(html(null, 'loading'), {}); else $panel.querySelector('.panel-in').innerHTML = html(null, 'loading');
+    const r = await V.monthGames(L, ym).catch(() => null);
+    if ($panel.hidden || !$panel.querySelector('.cal-g')) return;
+    $panel.querySelector('.panel-in').innerHTML = html(r ? r.days : {}, r ? (r.truncated ? 'counts are partial on the busiest days' : '') : "the feed didn't answer");
+  }
 
   function openInjury(key) {
     const rec = S.injuries && S.injuries[key]; if (!rec) return;

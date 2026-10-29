@@ -546,3 +546,59 @@ button.row.prow.sel:active{transform:scale(.985)}
 /* season phase under the date strip */
 .phase{margin:4px var(--gut-r) 0 var(--gut);padding:0;font-size:12.5px;font-weight:800;color:var(--ink-3);letter-spacing:.04em;text-transform:uppercase}
 .dates .gap{flex:none;width:1px;align-self:stretch;background:var(--line-2);margin:6px 4px}
+/* ---- calendar sheet ---- */
+.cal-h{display:flex;align-items:center;justify-content:space-between;margin:2px 36px 6px 0}
+.cal-h h3{font-size:19px;letter-spacing:-.01em;text-align:center}
+.cal-h h3 small{display:block;font-size:12px;font-weight:700;color:var(--ink-3);letter-spacing:.06em;text-transform:uppercase;margin-top:2px}
+.cal-h .ib{color:var(--ink)}
+.cal-w{display:grid;grid-template-columns:repeat(7,1fr);text-align:center;font-size:11.5px;font-weight:800;color:var(--ink-3);padding:6px 0 4px;letter-spacing:.04em}
+.cal-g{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cd{display:flex;flex-direction:column;align-items:center;justify-content:center;height:56px;border-radius:12px;background:var(--surf-2);color:var(--ink);font:inherit;position:relative;box-shadow:var(--edge)}
+.cd.pad{background:none;box-shadow:none}
+.cd b{font:800 19px/1 var(--num)}
+.cd span{display:flex;align-items:center;gap:3px;font-size:11.5px;font-weight:700;color:var(--ink-3);margin-top:4px;min-height:14px}
+.cd span i,.cal-f .dot{width:7px;height:7px;border-radius:50%;background:var(--ink);display:inline-block}
+.cd.off{color:var(--ink-3);background:none;box-shadow:inset 0 0 0 1px var(--line)}
+.cd.off b{font-weight:700;opacity:.55}
+.cd.today{box-shadow:var(--edge),inset 0 0 0 2px var(--line-2)}
+.cd.on{background:var(--ink);color:var(--bg);box-shadow:none}
+.cd.on span{color:var(--bg);opacity:.85}
+.cd.on span i{background:var(--bg)}
+.cd:active{transform:scale(.96)}
+.cal-f{margin:12px 0 0;font-size:12.5px;color:var(--ink-3);display:flex;align-items:center;gap:6px}
+.day.cal{width:52px;color:var(--ink-2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
+.day.cal svg{width:20px;height:20px}
+.day.cal em{font-size:10.5px}
+
+/* ---- season averages card ---- */
+.card{margin:14px var(--gut-r) 0 var(--gut);padding:16px 16px 6px;border-radius:18px;background:linear-gradient(180deg,var(--surf-2),var(--surf));box-shadow:var(--edge)}
+.card-h{display:flex;align-items:baseline;gap:10px;margin:0 0 12px}
+.card-h h2{font-size:19px;line-height:1.1}
+.card-h small{font-size:13px;font-weight:600;color:var(--ink-3)}
+.card .chips{padding:0 0 12px;margin:0 -16px;padding-left:16px;padding-right:16px}
+.card .chip{background:var(--surf-3)}
+.card .chip.on,.card .chip[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.ring{display:flex;align-items:center;gap:12px;padding:2px 0 6px}
+.ring svg{flex:none;width:136px;height:136px;filter:drop-shadow(0 6px 14px rgba(0,0,0,.18))}
+.ring .key{flex:1;min-width:0;display:flex;flex-direction:column;gap:10px}
+.ring .key div{display:grid;grid-template-columns:9px 1fr auto 34px;align-items:center;gap:8px;font-size:13.5px}
+.ring .key i{width:10px;height:10px;border-radius:50%}
+.ring .key span{color:var(--ink-2);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ring .key b{font:800 18px/1 var(--num)}
+.ring .key em{font-style:normal;font-size:12px;font-weight:700;color:var(--ink-3);text-align:right}
+.ringnote{margin:2px 0 8px;font-size:13px;color:var(--ink-3)}
+.card .bars{padding:4px 0 8px}
+.card .bars div{grid-template-columns:92px 1fr 52px}
+.card .bars small{grid-column:1/-1;font-size:12px;color:var(--ink-3);margin-top:-6px}
+.sgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
+.sgrid div{background:var(--surf);border-radius:12px;padding:10px 8px 9px;text-align:center;box-shadow:inset 0 0 0 1px var(--line)}
+.sgrid b{display:block;font:800 24px/1 var(--num);white-space:nowrap}
+.sgrid span{display:block;font-size:11px;font-weight:700;color:var(--ink-3);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card-f{display:flex;justify-content:flex-end;padding:10px 0 6px}
+.card-f button{font-size:13.5px;font-weight:700;color:var(--ink-2)}
+.clip{width:236px}
+.clip .th{aspect-ratio:16/9}
+.clip b{font-size:14px}
+/* the pointer: a small arrow beside the score that's ahead */
+.game .sc{position:relative;padding-right:13px}
+.game .sc.on::after{content:"";position:absolute;right:0;top:50%;transform:translateY(-50%);border:5px solid transparent;border-left:7px solid currentColor;border-right:0;opacity:.95}
