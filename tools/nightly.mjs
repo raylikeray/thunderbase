@@ -223,7 +223,7 @@ async function runSchedule() {
     // last night's copy: finished games older than three days are kept as they are, everything from there on is read again
     const prev = readJson(`data/${lk}/schedule.json`, null); const keepBefore = addDays(todayCT(), -3);
     const games = []; const seen = new Set();
-    if (prev && prev.season === L.seasonStart) (prev.games || []).forEach(g => { if (g.st === 'post' && g.d < keepBefore) { seen.add(g.id); games.push(g); } });
+    if (prev && prev.season === L.seasonStart) (prev.games || []).forEach(g => { if (g.st === 'post' && g.hs != null && g.as != null && g.d < keepBefore) { seen.add(g.id); games.push(g); } });   // a postponed game is filed as post with no score: never keep it, it comes back on its new date
     let d = games.length ? keepBefore : L.seasonStart; if (d < addDays(todayCT(), -200)) d = addDays(todayCT(), -200);
     let got = 0, missed = 0, calls = 0;
     const take = evs => evs.forEach(e => { const g = compactEvent(e); if (g && !seen.has(g.id)) { seen.add(g.id); games.push(g); got++; } });
