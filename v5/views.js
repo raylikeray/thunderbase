@@ -36,7 +36,10 @@
   const empty = (title, body, cta) => `<div class="empty"><b>${esc(title)}</b>${body || ''}${cta || ''}</div>`;
   const skeleton = (n = 3, kind = 'row') => Array.from({ length: n }, () => `<div class="skel ${kind}"></div>`).join('');
   const recOf = t => t && t.rec ? t.rec : '';
-  const confName = (name, abbr) => { const n = String(name || ''); const m = n.match(/^(East|West|North|South|Central|Atlantic|Pacific|Southeast|Southwest|Northwest)(ern)?( Conference| Division)?$/i); if (m) return m[1][0].toUpperCase() + m[1].slice(1).toLowerCase(); if (/ Conference$/i.test(n)) return n.replace(/ Conference$/i, ''); if (abbr && String(abbr).length > 3) return String(abbr); return n || String(abbr || ''); };
+  /* group names the way people say them: "Eastern Conference" is the East, "Southeast Division" is the Southeast,
+     and a college conference loses the word Conference (the two everyone abbreviates get their initials) */
+  const CONF_SHORT = { 'Atlantic Coast': 'ACC', 'Southeastern': 'SEC', 'American Athletic': 'American', 'Western Athletic': 'WAC', 'Mid-American': 'MAC', 'Mid-Eastern Athletic': 'MEAC', 'Southwestern Athletic': 'SWAC', 'Atlantic Sun': 'ASUN', 'Coastal Athletic Association': 'CAA' };
+  const confName = (name, abbr) => { const n = String(name || ''); let m = n.match(/^(East|West)(ern)? Conference$/i); if (m) return m[1][0].toUpperCase() + m[1].slice(1).toLowerCase(); m = n.match(/^(\w+) Division$/i); if (m) return m[1]; if (/ Conference$/i.test(n)) { const base = n.replace(/ Conference$/i, ''); return CONF_SHORT[base] || base; } if (CONF_SHORT[n]) return CONF_SHORT[n]; if (abbr && String(abbr).length > 3) return String(abbr); return n || String(abbr || ''); };
   const dayUTC = iso => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
   const standingLine = (r, L) => !r ? '' : L.standingsMode === 'conferences' ? `${r.w}-${r.l}` : `${r.w}-${r.l}, ${ordinal(r.pos)} in the ${confName(r.group, r.groupAbbr)}`;
   const starSvg = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="m12 2.8 2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.7l-5.9 3.1 1.2-6.5L2.5 9.7l6.6-.9z"/></svg>`;

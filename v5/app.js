@@ -233,9 +233,22 @@
         `<button class="btn ghost" data-act="onb-next" data-step="${n + 1}">Skip</button><button class="btn" data-act="onb-next" data-step="${n + 1}" id="onbNext">${nn ? `Continue with ${nn}` : 'Continue'}</button>`);
       const list = document.getElementById('onbList'); const inp = document.getElementById('onbq');
       if (n === 0) {
-        const [idx, st] = await Promise.all([V.teamsIndex(L), HW.standings(L).catch(() => null)]);
-        const all = Object.values(idx).sort((a, b) => (a.short || a.name || '').localeCompare(b.short || b.name || ''));   // by the name on the tile
-        const paint = () => { const q = inp.value.trim().toLowerCase(); const rows = all.filter(tm => !q || `${tm.name} ${tm.abbr}`.toLowerCase().includes(q)).slice(0, 80); list.innerHTML = `<div class="onb-grid">${rows.map(tm => { const on = HW.favs.has(lk, tm.id); const r = st && st.byId && st.byId[tm.id]; return `<button class="onb-team${on ? ' on' : ''}" data-act="fav" data-lk="${lk}" data-id="${esc(tm.id)}" data-name="${esc(tm.short)}" aria-pressed="${on}"><span class="logo"><img src="${esc(tm.logo || '')}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"></span><b>${esc(tm.short || tm.name)}</b><span>${r ? `${r.w}-${r.l}` : ''}</span><i></i></button>`; }).join('')}</div>`; };
+        /* every team in the league. Pro leagues are one alphabetical grid; college is the AP Top 25 first, then each
+           conference A to Z with its teams alphabetical, because 360 tiles in one wall is not a list anyone can use. */
+        const [idx, st, R] = await Promise.all([V.teamsIndex(L), HW.standings(L).catch(() => null), HW.rankings(L).catch(() => null)]);
+        const byShort = (a, b) => (a.short || a.name || '').localeCompare(b.short || b.name || '');
+        const tile = (id, rank) => { const t = idx[id] || {}; const r = st && st.byId && st.byId[id]; return { id, short: t.short || (r && r.short) || t.name || (r && r.name) || '', name: t.name || (r && r.name) || '', abbr: t.abbr || (r && r.abbr) || '', logo: t.logo || (r && r.logo) || '', rec: r ? `${r.w}-${r.l}` : '', rank: rank || 0 }; };
+        const seen = new Set(); const groups = [];
+        if (L.standingsMode === 'conferences' && st && st.groups.length) {
+          if (R && R.ranks && R.ranks.length) groups.push({ name: R.name || 'Top 25', rows: R.ranks.map(x => tile(String(x.team.id), x.rank)) });
+          st.groups.slice().sort((a, b) => V._.confName(a.name, a.abbr).localeCompare(V._.confName(b.name, b.abbr))).forEach(g => { const rows = g.rows.map(r => { seen.add(r.id); return tile(r.id); }).sort(byShort); if (rows.length) groups.push({ name: V._.confName(g.name, g.abbr), rows }); });
+          const rest = Object.keys(idx).filter(id => !seen.has(id)).map(id => tile(id)).sort(byShort); if (rest.length) groups.push({ name: 'Other', rows: rest });
+        } else groups.push({ name: '', rows: Object.keys(idx).map(id => tile(id)).sort(byShort) });
+        const paint = () => {
+          const q = inp.value.trim().toLowerCase();
+          const html = groups.map(g => { const rows = g.rows.filter(tm => !q || `${tm.name} ${tm.short} ${tm.abbr} ${g.name}`.toLowerCase().includes(q)); if (!rows.length) return ''; return `${g.name ? `<div class="onb-sec"><b>${esc(g.name)}</b><span>${rows.length}</span></div>` : ''}<div class="onb-grid">${rows.map(tm => { const on = HW.favs.has(lk, tm.id); return `<button class="onb-team${on ? ' on' : ''}" data-act="fav" data-lk="${lk}" data-id="${esc(tm.id)}" data-name="${esc(tm.short)}" aria-pressed="${on}"><span class="logo"><img src="${esc(tm.logo || '')}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"></span><b>${esc(tm.short)}</b><span>${tm.rank ? `<em>No. ${tm.rank}</em>` : ''}${esc(tm.rec)}</span><i></i></button>`; }).join('')}</div>`; }).join('');
+          list.innerHTML = html || `<div class="empty"><b>No team matches</b><p style="margin:6px 0 0">Try the school, the nickname or the conference.</p></div>`;
+        };
         paint(); inp.addEventListener('input', paint);
       } else {
         const [lp, idx] = await Promise.all([L.sport === 'basketball' ? HW.leaguePlayers(L).catch(() => null) : null, V.teamsIndex(L)]);
@@ -257,8 +270,10 @@
     }
   }
   V.onbStep = onbStep;
-  /* the Continue button counts what has been picked so far */
-  const onbCount = () => { const b = document.getElementById('onbNext'); if (!b || $panel.hidden) return; const step = +(b.dataset.step || 1) - 1; const nn = step === 0 ? ORDER.reduce((c, k) => c + (HW.favs.all()[k] || []).length, 0) : V.fplayers.all().length; b.textContent = nn ? `Continue with ${nn}` : 'Continue'; };
+  /* the Continue button counts what has been picked so far; a team in the Top 25 and in its conference is one tile drawn twice, so every tile re-syncs */
+  const onbCount = () => { const b = document.getElementById('onbNext'); if (!b || $panel.hidden) return;
+    $panel.querySelectorAll('.onb-team').forEach(t => { const on = HW.favs.has(t.dataset.lk, t.dataset.id); t.classList.toggle('on', on); t.setAttribute('aria-pressed', String(on)); });
+    const step = +(b.dataset.step || 1) - 1; const nn = step === 0 ? ORDER.reduce((c, k) => c + (HW.favs.all()[k] || []).length, 0) : V.fplayers.all().length; b.textContent = nn ? `Continue with ${nn}` : 'Continue'; };
   $panel.addEventListener('rivl:fav', onbCount); $panel.addEventListener('rivl:follow', onbCount);
 
   /* ---------- boot ---------- */
