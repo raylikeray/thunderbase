@@ -271,22 +271,48 @@ function derive(own, opp) {
   return r;
 }
 const LOWER_BETTER = new Set(['drtg', 'tovr', 'oefg', 'oftr', 'oppPts', 'tov']);
+/* both sides of every final, from the box score: the only way to get what a team allows */
+const BOX_KEYS = ['pts', 'fga', 'fgm', 'tpa', 'tpm', 'fta', 'ftm', 'orb', 'drb', 'tov', 'ast', 'stl', 'blk', 'pf'];
+function boxTotals(summary, g) {
+  const teams = summary && summary.boxscore && summary.boxscore.teams || []; if (teams.length !== 2) return null;
+  const read = t => { const m = {}; (t.statistics || []).forEach(x => { if (x && x.name) m[x.name] = String(x.displayValue ?? ''); }); const pair = k => { const v = (m[k] || '').split('-').map(Number); return v.length === 2 && v.every(isFinite) ? v : [null, null]; }; const num = k => { const v = parseFloat(m[k]); return isFinite(v) ? v : null; };
+    const [fgm, fga] = pair('fieldGoalsMade-fieldGoalsAttempted'), [tpm, tpa] = pair('threePointFieldGoalsMade-threePointFieldGoalsAttempted'), [ftm, fta] = pair('freeThrowsMade-freeThrowsAttempted');
+    return { id: String(t.team && t.team.id), fga, fgm, tpa, tpm, fta, ftm, orb: num('offensiveRebounds'), drb: num('defensiveRebounds'), tov: num('turnovers') ?? num('totalTurnovers'), ast: num('assists'), stl: num('steals'), blk: num('blocks'), pf: num('fouls') }; };
+  const a = read(teams[0]), b = read(teams[1]); if (!a.id || !b.id || a.fga == null || b.fga == null) return null;
+  a.pts = a.id === g.h ? g.hs : g.as; b.pts = b.id === g.h ? g.hs : g.as;
+  return [a, b];
+}
+function perGameFromBox(t) { const g = t.gp || 0; if (!g) return {}; const m = { gamesPlayed: g }; const avg = { pts: 'avgPoints', fga: 'avgFieldGoalsAttempted', fgm: 'avgFieldGoalsMade', tpa: 'avgThreePointFieldGoalsAttempted', tpm: 'avgThreePointFieldGoalsMade', fta: 'avgFreeThrowsAttempted', ftm: 'avgFreeThrowsMade', orb: 'avgOffensiveRebounds', drb: 'avgDefensiveRebounds', tov: 'avgTurnovers', ast: 'avgAssists', stl: 'avgSteals', blk: 'avgBlocks', pf: 'avgFouls' }; BOX_KEYS.forEach(k => { if (t[k] != null) m[avg[k]] = t[k] / g; }); return m; }
 async function runTeamStats() {
   for (const lk of ['nba', 'wnba']) {
     const L = LEAGUES[lk]; if (!L) continue;
     const R = readJson(`data/${lk}/ratings.json`, null); const ids = R && R.teams ? Object.keys(R.teams) : [];
     if (!ids.length) { console.log(lk, 'teamstats: no teams yet'); continue; }
     if (todayCT() < L.seasonStart) { console.log(lk, 'teamstats: season not started'); continue; }
-    const teams = {}; let shape = null, got = 0;
+    // the season's box scores, accumulated game by game and kept in the state file
+    const sp = `data/${lk}/state.json`; const st = readJson(sp, null) || {}; if (!st.box || st.box.season !== L.seasonStart) st.box = { season: L.seasonStart, games: {}, teams: {} };
+    const sched = readJson(`data/${lk}/schedule.json`, null); const finals = sched && sched.season === L.seasonStart ? sched.games.filter(g => g.t === 2 && !g.x && g.st === 'post' && g.hs != null && g.as != null && !st.box.games[g.id]) : [];
+    let added = 0;
+    for (const g of finals.slice(0, 150)) {
+      const sm = await soft(`${API(L)}/summary?event=${g.id}`); const tot = sm && boxTotals(sm, g); await sleep(120);
+      if (!tot) { st.box.games[g.id] = 0; continue; }   // no box score: noted so it isn't asked for again
+      tot.forEach((t, i) => { const o = tot[1 - i]; const T = st.box.teams[t.id] = st.box.teams[t.id] || { gp: 0, opp: {} }; T.gp++; BOX_KEYS.forEach(k => { if (t[k] != null) T[k] = (T[k] || 0) + t[k]; if (o[k] != null) T.opp[k] = (T.opp[k] || 0) + o[k]; }); });
+      st.box.games[g.id] = 1; added++;
+    }
+    writeJson(sp, st);
+    const teams = {}; let shape = null, got = 0, fromFeed = 0;
     for (const id of ids) {
-      const d = await soft(`${API(L)}/teams/${id}/statistics`); if (!d) continue;
-      if (!shape) shape = describe(d);
-      const r = d.results || d; const own = flatStats(r.stats || r), opp = flatStats(r.opponent);
+      const B = st.box.teams[id];
+      let own = B && B.gp ? perGameFromBox(B) : null, opp = B && B.gp ? perGameFromBox({ ...B.opp, gp: B.gp }) : null;
+      if (!own) {   // nothing in the box yet: the feed's own-side averages, without what the team allows
+        const d = await soft(`${API(L)}/teams/${id}/statistics`); if (!d) continue; if (!shape) shape = describe(d);
+        const r = d.results || d; own = flatStats(r.stats || r); opp = flatStats(r.opponent); fromFeed++; await sleep(150);
+      }
       const v = derive(own, opp); if (!v) continue;
-      teams[id] = { ...v, abbr: R.teams[id].abbr, short: R.teams[id].short }; got++;
-      await sleep(150);
+      teams[id] = { ...v, abbr: R.teams[id].abbr, short: R.teams[id].short, box: !!(B && B.gp) }; got++;
     }
     if (!got) { console.log(lk, 'teamstats: nothing came back', JSON.stringify(shape || {}).slice(0, 300)); continue; }
+    console.log(lk, `teamstats: ${added} box scores added (${Object.keys(st.box.games).length} on file), ${fromFeed} teams from the feed's averages`);
     // ranks: 1 is best
     const keys = ['pts', 'oppPts', 'pace', 'ortg', 'drtg', 'net', 'efg', 'tovr', 'orbr', 'ftr', 'oefg', 'otovr', 'drbr', 'oftr', 'tpr', 'ast', 'tov', 'stl', 'blk', 'fg', 'tp', 'ft'];
     const ranks = {}; keys.forEach(k => { const list = Object.entries(teams).filter(([, t]) => t[k] != null).sort((x, y) => LOWER_BETTER.has(k) ? x[1][k] - y[1][k] : y[1][k] - x[1][k]); list.forEach(([id], i) => { (ranks[id] = ranks[id] || {})[k] = i + 1; }); });
