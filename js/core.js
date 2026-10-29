@@ -155,9 +155,9 @@ async function standings(L, season) {
 }
 async function priorStandings(L) { try { return await standings(L, seasonYear() - 1); } catch { return null; } }
 async function rankings(L) { if (!L.hasRankings) return null; const d = await jSoft(`${API(L)}/rankings`, 1800000); if (!d || !d.rankings) return null; const ap = d.rankings.find(r => /AP/i.test(r.name)) || d.rankings[0]; return { name: ap.name, week: ap.headline || ap.shortHeadline || '', ranks: (ap.ranks || []).map(r => ({ rank: r.current, prev: r.previous, trend: r.trend, team: (() => { const t = r.team || {}; const loc = t.location || t.nickname || t.name || ''; const mascot = t.name && t.name !== loc ? t.name : ''; return { id: String(t.id), name: mascot ? `${loc} ${mascot}` : loc, short: t.nickname || loc, abbr: t.abbreviation, logo: t.logos && t.logos[0] && t.logos[0].href }; })(), rec: r.recordSummary, pts: r.points, first: r.firstPlaceVotes })) }; }
-async function ratings(L) { return jSoft(`data/${L.key}/ratings.json?d=${todayCT()}`, 900000); }
-async function record(L) { return jSoft(`data/${L.key}/record.json?d=${todayCT()}`, 900000); }
-async function params(L) { return jSoft(`data/${L.key}/params.json?d=${todayCT()}`, 900000); }
+async function ratings(L) { return jSoft(`${HW.DATA || 'data/'}${L.key}/ratings.json?d=${todayCT()}`, 900000); }
+async function record(L) { return jSoft(`${HW.DATA || 'data/'}${L.key}/record.json?d=${todayCT()}`, 900000); }
+async function params(L) { return jSoft(`${HW.DATA || 'data/'}${L.key}/params.json?d=${todayCT()}`, 900000); }
 async function injuries(L) { if (!L.hasInjuries) return null; const d = await jSoft(`${API(L)}/injuries`, 600000); if (!d || !d.injuries) return null; const byTeam = {}; d.injuries.forEach(t => { const id = String(t.id || (t.injuries && t.injuries[0] && t.injuries[0].athlete && t.injuries[0].athlete.team && t.injuries[0].athlete.team.id) || ''); byTeam[id] = { name: t.displayName, list: t.injuries || [] }; }); return { teams: d.injuries, byTeam }; }
 
 /* ---------- forecast model ----------
@@ -232,7 +232,7 @@ function fracLeft(L, g) {
 const ctxCache = new Map();
 async function forecastCtx(L, ymd) {
   const k = L.key + ymd; const hit = ctxCache.get(k); if (hit && Date.now() - hit.t < 300000) return hit.v;
-  const [rt, cur, yday, inj, lp, params] = await Promise.all([ratings(L), standings(L).catch(() => null), scoreboard(L, addDays(ymd, -1)).catch(() => []), injuries(L), L.hasInjuries && L.sport === 'basketball' ? leaguePlayers(L).catch(() => null) : null, jSoft(`data/${L.key}/params.json?d=${todayCT()}`, 900000)]);
+  const [rt, cur, yday, inj, lp, params] = await Promise.all([ratings(L), standings(L).catch(() => null), scoreboard(L, addDays(ymd, -1)).catch(() => []), injuries(L), L.hasInjuries && L.sport === 'basketball' ? leaguePlayers(L).catch(() => null) : null, jSoft(`${HW.DATA || 'data/'}${L.key}/params.json?d=${todayCT()}`, 900000)]);
   const prior = rt ? null : await priorStandings(L);
   const b2b = new Set(); yday.forEach(g => { if (g.state !== 'pre') { b2b.add(g.home.id); b2b.add(g.away.id); } });
   const ppg = {}; if (lp) lp.rows.forEach(r => { ppg[(r.name || '').toLowerCase()] = { pts: r.pts, teamId: r.teamId }; });

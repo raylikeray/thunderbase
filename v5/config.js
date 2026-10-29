@@ -46,6 +46,6 @@
     v2: 'https://site.api.espn.com/apis/v2/sports/',
     web: 'https://site.web.api.espn.com/apis/common/v3/sports/'
   };
-  const out = { LEAGUES, SPORTS, ORDER, ESPN, PUSH, TZ: 'America/Chicago', SITE: 'RIVL' };
+  const out = { LEAGUES, SPORTS, ORDER, ESPN, PUSH, TZ: 'America/Chicago', SITE: 'RIVL', DATA: '../data/' };
   if (typeof module !== 'undefined' && module.exports) module.exports = out; else root.HW = Object.assign(root.HW || {}, out);
 })(typeof globalThis !== 'undefined' ? globalThis : this);
