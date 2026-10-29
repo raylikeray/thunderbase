@@ -1,1 +1,1 @@
-{"hca":2.4,"b2b":1.8,"sd":12,"k":20,"calib":null,"tunedAt":"2026-10-28T21:48:40.365Z","n":56,"tuneAt":60,"note":"waiting for 60 games before tuning","history":[]}
+{"hca":2,"b2b":1.9,"sd":11.4,"k":18,"calib":null,"tunedAt":"2026-10-29T16:58:38.129Z","n":68,"tuneAt":60,"brier":0.2066,"best":{"hca":0.5,"b2b":2.5,"sd":9,"k":12,"brier":0.196},"history":[{"date":"2026-10-29","hca":2,"b2b":1.9,"sd":11.4,"k":18,"calib":null,"brier":0.2066,"base":0.2098,"n":68}]}
