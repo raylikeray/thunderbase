@@ -5,7 +5,10 @@
   const { LEAGUES, ORDER, esc, j, jSoft, todayCT, addDays, dayLabel, relDay, tip, dateShort, ago, pct, ordinal, sign, hx, store, API, WEB,
     favs, parseEvent, isLive, isFav, interest, scoreboard, standings, rankings, injuries, forecast, forecastCtx, leaguePlayers, watchFor, S, ymdOf } = HW;
   const V = HW.v5;
-  const { h: H, logo, headshot, chev, sec, empty, skeleton, href, safeF, gameCard, heroCard, teamInfo, teamsIndex, fplayers, starSvg, starLine, tvLabel, confName, dayUTC } = V._;
+  const { h: H, logo, headshot, chev, sec, empty, skeleton, href, safeF, gameCard, heroCard, teamInfo, teamsIndex, fplayers, prefs, starSvg, starLine, tvLabel, confName, dayUTC, athId, hsUrl, retInfo } = V._;
+  /* a story's tags: ESPN marks each article with the teams and athletes it is about */
+  const cats = a => a && a.categories || [];
+  const taggedTeam = (a, id) => cats(a).some(c => c.type === 'team' && String(c.teamId || (c.team && c.team.id) || '') === String(id));
   const $main = document.getElementById('main');
   S.news = S.news || {}; S.videos = S.videos || {};
   const hide = `onerror="this.style.visibility='hidden'"`;
@@ -104,7 +107,7 @@
     const ppg = {}; if (lp) lp.rows.forEach(p => { if (p.teamId === String(id)) ppg[p.id] = p; });
     const sorted = ath.slice().sort((a, b) => ((ppg[b.id] || {}).pts || 0) - ((ppg[a.id] || {}).pts || 0) || (a.displayName || '').localeCompare(b.displayName || ''));
     const posWord = p => ({ G: 'Guard', F: 'Forward', C: 'Center', 'G-F': 'Guard/forward', 'F-G': 'Forward/guard', 'F-C': 'Forward/center', 'C-F': 'Center/forward', PG: 'Point guard', SG: 'Shooting guard', SF: 'Small forward', PF: 'Power forward' }[p] || p || '');
-    const rRow = (a, extra) => { const p = ppg[a.id]; const injd = a.injuries && a.injuries[0]; return `<a class="row${extra ? ' more' : ''}" href="${href.player(lk, a.id)}"${extra ? ' hidden data-more="roster"' : ''}>${headshot(a.headshot && a.headshot.href, color, 46)}<span class="t"><b>${esc(a.displayName)}</b><span>${esc([posWord(a.position && a.position.abbreviation), a.jersey ? `No. ${a.jersey}` : ''].filter(Boolean).join(', '))}${injd ? ` <span class="tag ${/out/i.test(injd.status) ? 'out' : 'q'}" style="margin-left:6px">${esc(injd.status)}</span>` : ''}</span></span>${p ? `<span class="r"><b>${p.pts.toFixed(1)}</b><span>ppg</span></span>` : chev}</a>`; };
+    const rRow = (a, extra) => { const p = ppg[a.id]; const injd = a.injuries && a.injuries[0]; return `<a class="row${extra ? ' more' : ''}" href="${href.player(lk, a.id)}"${extra ? ' hidden data-more="roster"' : ''}>${headshot(hsUrl(a), color, 46, a.displayName)}<span class="t"><b>${esc(a.displayName)}</b><span>${esc([posWord(a.position && a.position.abbreviation), a.jersey ? `No. ${a.jersey}` : ''].filter(Boolean).join(', '))}${injd ? ` <span class="tag ${/out/i.test(injd.status) ? 'out' : 'q'}" style="margin-left:6px">${esc(injd.status)}</span>` : ''}</span></span>${p ? `<span class="r"><b>${p.pts.toFixed(1)}</b><span>ppg</span></span>` : chev}</a>`; };
     const rosterHtml = sorted.length ? sec('Roster', `${sorted.length}`, sorted.length > 6 ? `<button data-act="expand" data-more="roster">Everyone</button>` : '') + `<div class="rows">${sorted.slice(0, 6).map(a => rRow(a, false)).join('')}${sorted.slice(6).map(a => rRow(a, true)).join('')}</div>` : '';
     // schedule: next five and last five, expandable to the season
     const sRow = (g, extra) => { const homeSide = g.home.id === String(id); const me = homeSide ? g.home : g.away, op = homeSide ? g.away : g.home; const d = new Date(g.date); const res = g.state === 'post' ? `<span class="res ${me.score > op.score ? 'w' : 'l'}" style="font-size:15px">${me.score > op.score ? 'W' : 'L'} ${me.score}-${op.score}</span>` : g.state === 'in' ? `<span class="live">${esc(g.detail)}</span>` : chev; return `<a class="row" href="${href.game(lk, g.id)}"${extra ? ' hidden data-more="sched"' : ''}><span class="d">${esc(d.toLocaleDateString('en-US', { month: 'short', timeZone: HW.TZ }))}<b>${esc(d.toLocaleDateString('en-US', { day: 'numeric', timeZone: HW.TZ }))}</b></span>${logo(op.logo, 'm')}<span class="t"><b>${g.neutral ? 'vs' : homeSide ? 'vs' : 'at'} ${esc(op.short)}</b><span>${g.state === 'post' ? 'Final' : g.state === 'in' ? 'Live' : esc([tip(g.date), tvLabel(g)].filter(Boolean).join(', '))}</span></span>${res}</a>`; };
@@ -114,8 +117,12 @@
     // injuries, news
     const il = inj && inj.byTeam[String(id)] && inj.byTeam[String(id)].list || [];
     S.injuries = S.injuries || {};
-    const injHtml = il.length ? sec('Injuries') + `<div class="rows">${il.map(x => { const a = x.athlete || {}; const key = `t:${id}:${a.id}`; S.injuries[key] = { x, team: { id: String(id), short: t0.shortDisplayName || t0.name, color } }; const stt = x.status || ''; const cls = /out/i.test(stt) ? 'out' : /day|quest|doubt/i.test(stt) ? 'q' : 'ok'; const det = x.details || {}; const why = [det.type || det.detail, det.returnDate ? 'back around ' + dayUTC(det.returnDate) : ''].filter(Boolean).join(', '); return `<button class="row" data-act="injury" data-key="${esc(key)}">${headshot(a.headshot && (a.headshot.href || a.headshot), color, 44)}<span class="t"><b>${esc(a.displayName || '')}</b><span>${esc(why || (x.shortComment || '').slice(0, 80))}</span></span><span class="tag ${cls}">${esc(stt)}</span></button>`; }).join('')}</div>` : '';
-    const arts = news && news.articles ? news.articles.filter(a => a.headline).slice(0, 6) : [];
+    const injHtml = il.length ? sec('Injuries') + `<div class="rows">${il.map((x, i) => { const a = x.athlete || {}; const aid = athId(a); const key = `t:${id}:${aid}:${x.id || i}`; S.injuries[key] = { x, id: aid, team: { id: String(id), short: t0.shortDisplayName || t0.name, color } }; const stt = x.status || ''; const cls = /out/i.test(stt) ? 'out' : /day|quest|doubt/i.test(stt) ? 'q' : 'ok'; const det = x.details || {}; const ret = retInfo(L, det.returnDate); const why = [det.type || det.detail, ret ? ret.short : ''].filter(Boolean).join(', '); return `<button class="row" data-act="injury" data-key="${esc(key)}">${headshot(hsUrl(a), color, 44, a.displayName)}<span class="t"><b>${esc(a.displayName || '')}</b><span>${esc(why || (x.shortComment || '').slice(0, 80))}</span></span><span class="tag ${cls}">${esc(stt)}</span></button>`; }).join('')}</div>` : '';
+    // news about this team only: ESPN's team tag first, the team's own name as the fallback; college feeds are league-wide, so nothing shows unless it matches
+    const college = /^ncaa/.test(lk);
+    const tn = [t0.displayName, t0.location, t0.shortDisplayName, college ? '' : t0.name].filter(n => n && n.length > 3);
+    const about = a => taggedTeam(a, id) || tn.some(n => `${a.headline || ''} ${a.description || ''}`.includes(n));
+    const arts = news && news.articles ? news.articles.filter(a => a.headline && (about(a) || (!college && !cats(a).length))).slice(0, 6) : [];
     const newsHtml = arts.length ? sec('News') + `<div class="rows">${arts.map(a => newsRow(lk, a)).join('')}</div>` : '';
     $main.innerHTML = topbar(esc(r && r.group ? r.group : L.label), '#teams') + hero + strip + nextHtml + rosterHtml + schedHtml + injHtml + newsHtml;
     document.title = `${t0.displayName} · RIVL`;
@@ -139,7 +146,7 @@
       const f = safeF(L, g, ctx);
       const tab = store.get('v5:gtab', 'summary');
       const title = `${esc(g.away.short)} ${g.neutral ? 'vs' : 'at'} ${esc(g.home.short)}`;
-      const hero = heroCard(L, g, ctx).replace('class="hero"', 'class="hero page"');
+      const hero = heroCard(L, g, ctx, { page: true });
       const tabs = chips([['summary', 'Summary'], ['box', 'Box score'], ['plays', 'Plays'], ['stats', 'Team stats']].filter(([k]) => g.state !== 'pre' || k === 'summary' || k === 'stats'), tab, 'gtab', 'tab');
       // box score helpers
       const bx = d.boxscore && d.boxscore.players || [];
@@ -156,9 +163,9 @@
       let body = '';
       if (tab === 'summary') {
         const tp = g.state !== 'pre' ? [topFor(g.away), topFor(g.home)] : [null, null];
-        if (tp[0] || tp[1]) body += sec(g.state === 'post' ? 'Top performers' : 'Leading the way') + `<div class="perf">${tp.map((x, i) => x ? `<a href="${href.player(lk, x.a.id)}">${headshot(x.a.headshot && (x.a.headshot.href || x.a.headshot), V._.teamColor(i ? g.home : g.away), 56)}<b>${esc(x.a.shortName || x.a.displayName)}</b><span class="line">${esc(x.pts)}</span><span>pts, ${esc(x.ast)} ast, ${esc(x.reb)} reb</span></a>` : '<div></div>').join('')}</div>`;
-        else if (d.leaders && d.leaders.length) { const items = []; d.leaders.forEach(t => (t.leaders || []).slice(0, 1).forEach(cat => { const Ld = cat.leaders && cat.leaders[0]; if (Ld) items.push({ team: t.team, cat, Ld }); })); if (items.length) body += sec('Season leaders') + `<div class="perf">${items.map(({ team, cat, Ld }) => `<a href="${href.player(lk, Ld.athlete.id)}">${headshot(Ld.athlete.headshot && (Ld.athlete.headshot.href || Ld.athlete.headshot), hx(team.color), 56)}<b>${esc(Ld.athlete.shortName || Ld.athlete.displayName)}</b><span class="line">${esc((Ld.displayValue || '').split(' ')[0])}</span><span>${esc(cat.displayName.toLowerCase())}</span></a>`).join('')}</div>`; }
-        if (f) {
+        if (tp[0] || tp[1]) body += sec(g.state === 'post' ? 'Top performers' : 'Leading the way') + `<div class="perf">${tp.map((x, i) => x ? `<a href="${href.player(lk, x.a.id)}">${headshot(hsUrl(x.a), V._.teamColor(i ? g.home : g.away), 56, x.a.displayName || x.a.shortName)}<b>${esc(x.a.shortName || x.a.displayName)}</b><span class="line">${esc(x.pts)}</span><span>pts, ${esc(x.ast)} ast, ${esc(x.reb)} reb</span></a>` : '<div></div>').join('')}</div>`;
+        else if (d.leaders && d.leaders.length) { const items = []; d.leaders.forEach(t => (t.leaders || []).slice(0, 1).forEach(cat => { const Ld = cat.leaders && cat.leaders[0]; if (Ld) items.push({ team: t.team, cat, Ld }); })); if (items.length) body += sec('Season leaders') + `<div class="perf">${items.map(({ team, cat, Ld }) => `<a href="${href.player(lk, Ld.athlete.id)}">${headshot(hsUrl(Ld.athlete), hx(team.color), 56, Ld.athlete.displayName || Ld.athlete.shortName)}<b>${esc(Ld.athlete.shortName || Ld.athlete.displayName)}</b><span class="line">${esc((Ld.displayValue || '').split(' ')[0])}</span><span>${esc(cat.displayName.toLowerCase())}</span></a>`).join('')}</div>`; }
+        if (f && prefs.get('forecast')) {
           const fav = f.pHome >= .5 ? g.home : g.away; const p = Math.max(f.pHome, 1 - f.pHome);
           const gap = f.H.rating - f.A.rating; const lead = gap >= 0 ? g.home : g.away;
           const wp = (d.winprobability || []).filter(x => x.homeWinPercentage != null);
@@ -201,7 +208,19 @@
   /* ================= ARTICLE READER ================= */
   const ALLOW = new Set(['P', 'H2', 'H3', 'H4', 'UL', 'OL', 'LI', 'BLOCKQUOTE', 'STRONG', 'B', 'EM', 'I', 'A', 'BR', 'FIGURE', 'FIGCAPTION', 'IMG']);
   const DROP = new Set(['SCRIPT', 'STYLE', 'IFRAME', 'ASIDE', 'NAV', 'FORM', 'OBJECT', 'EMBED', 'VIDEO', 'AUDIO', 'SVG', 'BUTTON', 'INPUT']);
-  function clean(html) {
+  /* ESPN links inside a story that have a screen here: players, teams, games and other stories stay in the app */
+  const LG = { nba: 'nba', wnba: 'wnba', 'mens-college-basketball': 'ncaam', 'womens-college-basketball': 'ncaaw' };
+  const ESPN_LINK = /^https?:\/\/(?:www\.)?espn\.com\/(nba|wnba|mens-college-basketball|womens-college-basketball)\/(player|team|game|recap|boxscore|story)\/_\/(id|name|gameId)\/([A-Za-z0-9]+)/i;
+  function inApp(u, idxs) {
+    const m = String(u || '').match(ESPN_LINK); if (!m) return null;
+    const lk = LG[m[1].toLowerCase()], kind = m[2].toLowerCase(), key = m[3].toLowerCase(), v = m[4];
+    if (kind === 'player' && key === 'id') return href.player(lk, v);
+    if (kind === 'team') { if (key === 'id') return href.team(lk, v); const idx = idxs[lk] || {}; const t = Object.values(idx).find(t => (t.abbr || '').toLowerCase() === v.toLowerCase()); return t ? href.team(lk, t.id) : null; }
+    if ((kind === 'game' || kind === 'recap' || kind === 'boxscore') && key === 'gameid') return href.game(lk, v);
+    if (kind === 'story' && key === 'id') return `#article/${lk}/${v}`;
+    return null;
+  }
+  function clean(html, idxs = {}) {
     const doc = new DOMParser().parseFromString(`<div>${html}</div>`, 'text/html'); const root = doc.body.firstChild;
     const walk = node => {
       [...node.childNodes].forEach(n => {
@@ -210,7 +229,7 @@
         walk(n);
         if (!ALLOW.has(n.tagName)) { n.replaceWith(...n.childNodes); return; }
         [...n.attributes].forEach(a => { if (!((n.tagName === 'A' && a.name === 'href') || (n.tagName === 'IMG' && a.name === 'src'))) n.removeAttribute(a.name); });
-        if (n.tagName === 'A') { const u = n.getAttribute('href') || ''; if (!/^https?:/i.test(u)) n.replaceWith(...n.childNodes); else { n.setAttribute('target', '_blank'); n.setAttribute('rel', 'noopener'); } }
+        if (n.tagName === 'A') { const u = n.getAttribute('href') || ''; const here = inApp(u, idxs); if (here) n.setAttribute('href', here); else if (!/^https?:/i.test(u)) n.replaceWith(...n.childNodes); else { n.setAttribute('target', '_blank'); n.setAttribute('rel', 'noopener'); } }
         if (n.tagName === 'IMG') { const u = n.getAttribute('src') || ''; if (!/^https:/i.test(u)) n.remove(); else { n.setAttribute('loading', 'lazy'); n.setAttribute('alt', ''); } }
       });
     };
@@ -227,12 +246,16 @@
     const h = full && (full.headlines && full.headlines[0] || full.article || full);
     const a = h && h.headline ? h : cached;
     if (!a) { $main.innerHTML = topbar('Story', '#home') + empty("Couldn't load this story", `<p style="margin:6px 0 0">The feed didn't answer.</p>`, `<a class="btn" href="${esc(webOf(cached))}" target="_blank" rel="noopener">Open on ESPN</a>`); return; }
-    const story = h && h.story ? clean(h.story) : '';
+    // team links in ESPN stories use the abbreviation, so load the index for any league the story links to
+    const raw = h && h.story || '';
+    const idxs = {}; await Promise.all([...new Set([...raw.matchAll(/espn\.com\/(nba|wnba|mens-college-basketball|womens-college-basketball)\/team\/_\/name\//gi)].map(x => LG[x[1].toLowerCase()]))].map(async k => { idxs[k] = await teamsIndex(LEAGUES[k]).catch(() => ({})); }));
+    const story = raw ? clean(raw, idxs) : '';
     const vids = (h && (h.video || h.videos) || cached && (cached.video || cached.videos) || []).filter(v => v && v.links); vids.forEach(v => { if (v.id != null) S.videos[String(v.id)] = v; });
     const clips = vids.length ? sec('Clips') + `<div class="media">${vids.map(v => `<button class="clip" data-act="play" data-vid="${esc(String(v.id))}"><div class="th">${v.thumbnail ? `<img src="${esc(v.thumbnail)}" alt="" loading="lazy">` : ''}<i><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l12-7.5z"/></svg></i>${v.duration ? `<em>${Math.floor(v.duration / 60)}:${String(v.duration % 60).padStart(2, '0')}</em>` : ''}</div><b>${esc(v.headline || v.title || '')}</b></button>`).join('')}</div>` : '';
     const premium = !story || (h && h.premium);
     const bodyHtml = story ? `<div class="body">${story}</div>` : `<p class="dek">${esc(a.description || cached && cached.description || '')}</p>`;
-    const tail = premium ? `<div class="empty" style="margin-top:18px"><b>${story ? 'This is an ESPN+ story' : 'Full story is on ESPN'}</b><p style="margin:6px 0 0">${story ? 'The rest is behind their paywall.' : 'ESPN only shares the summary for this one.'}</p><a class="btn" style="margin-top:12px" href="${esc(webOf(a))}" target="_blank" rel="noopener">Continue on ESPN</a></div>` : `<p class="foot"><a href="${esc(webOf(a))}" target="_blank" rel="noopener">Read on ESPN</a></p>`;
+    // the whole story is here, so nothing points back to ESPN; only a paywalled or summary-only piece gets a way out
+    const tail = premium ? `<div class="empty" style="margin-top:18px"><b>${story ? 'This is an ESPN+ story' : 'Full story is on ESPN'}</b><p style="margin:6px 0 0">${story ? 'The rest is behind their paywall.' : 'ESPN only shares the summary for this one.'}</p><a class="btn" style="margin-top:12px" href="${esc(webOf(a))}" target="_blank" rel="noopener">Continue on ESPN</a></div>` : '';
     $main.innerHTML = topbar('Story', '#home', '') + head(a) + bodyHtml + '</article>' + clips + tail;
     document.title = `${a.headline} · RIVL`;
   }
@@ -247,10 +270,43 @@
       const q = inp.value.trim().toLowerCase(); const out = $main.querySelector('#sres'); if (!q) { out.innerHTML = ''; return; }
       const teams = Object.values(idx).filter(t => `${t.name} ${t.abbr}`.toLowerCase().includes(q)).slice(0, 5);
       const players = lp ? lp.rows.filter(p => (p.name || '').toLowerCase().includes(q)).slice(0, 12) : [];
-      out.innerHTML = (teams.length ? sec('Teams') + `<div class="rows">${teams.map(t => `<a class="row" href="${href.team(lk, t.id)}">${logo(t.logo)}<span class="t"><b>${esc(t.name)}</b></span>${chev}</a>`).join('')}</div>` : '') + (players.length ? sec('Players') + `<div class="rows">${players.map(p => { const t = idx[p.teamId] || {}; return `<a class="row" href="${href.player(lk, p.id)}">${headshot(p.img, t.color, 46)}<span class="t"><b>${esc(p.name)}</b><span>${esc(t.short || p.team)}</span></span><span class="r"><b>${p.pts.toFixed(1)}</b><span>ppg</span></span></a>`; }).join('')}</div>` : '') || empty('No matches');
+      out.innerHTML = (teams.length ? sec('Teams') + `<div class="rows">${teams.map(t => `<a class="row" href="${href.team(lk, t.id)}">${logo(t.logo)}<span class="t"><b>${esc(t.name)}</b></span>${chev}</a>`).join('')}</div>` : '') + (players.length ? sec('Players') + `<div class="rows">${players.map(p => { const t = idx[p.teamId] || {}; return `<a class="row" href="${href.player(lk, p.id)}">${headshot(p.img, t.color, 46, p.name)}<span class="t"><b>${esc(p.name)}</b><span>${esc(t.short || p.team)}</span></span><span class="r"><b>${p.pts.toFixed(1)}</b><span>ppg</span></span></a>`; }).join('')}</div>` : '') || empty('No matches');
     };
     let t = null; inp.addEventListener('input', () => { clearTimeout(t); t = setTimeout(paint, 100); });
   }
 
-  Object.assign(V, { standings: standingsV, teams: teamsV, team: teamV, game: gameV, article: articleV, search: searchV });
+  /* ================= SETTINGS: what you follow, what Home shows, how it looks ================= */
+  const PREFS = [
+    ['live', 'Live now', 'A big card when one of your teams is playing'],
+    ['teams', 'My teams', 'Record, next game and the chance to win'],
+    ['games', 'Your games', 'The next game for each team you follow'],
+    ['players', 'My players', 'Scoring lines, one tap to the profile'],
+    ['injuries', 'Injuries', 'Reports on your teams and players'],
+    ['news', 'News', 'Stories about your teams and players']
+  ];
+  const sw = (k, on, title, body) => `<button class="row sw" data-act="pref" data-pref="${k}" role="switch" aria-checked="${on}"><span class="t"><b>${esc(title)}</b><span class="wrap">${esc(body)}</span></span><span class="switch"></span></button>`;
+  async function settingsV() {
+    const P = prefs.all(); const theme = store.get('v5:theme', 'system');
+    const F = favs.all(); const fp = fplayers.all();
+    const back = `<div class="topbar"><a class="ib" href="#home" data-act="back" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m14 6-6 6 6 6"/></svg></a><span class="ttl">Settings</span></div>`;
+    $main.innerHTML = back + skeleton(6, 'row');
+    const leagues = ORDER.filter(k => (F[k] || []).length);
+    const idxs = {}; await Promise.all(leagues.map(async k => { idxs[k] = await teamsIndex(LEAGUES[k]).catch(() => ({})); }));
+    const teamRows = leagues.flatMap(k => (F[k] || []).map(id => { const t = idxs[k][String(id)] || { id: String(id), name: 'Team', logo: '' }; return `<div class="row prow"><a class="go" href="${href.team(k, t.id)}">${logo(t.logo)}</a><a class="t" href="${href.team(k, t.id)}"><b>${esc(t.name || t.short)}</b><span>${esc(LEAGUES[k].label)}</span></a><button class="star on" data-act="fav" data-lk="${k}" data-id="${esc(t.id)}" data-name="${esc(t.short || t.name)}" aria-pressed="true" aria-label="Unfollow ${esc(t.name || '')}">${starSvg}</button></div>`; }));
+    const playerRows = fp.map(p => `<div class="row prow"><a class="go" href="${href.player(p.lk, p.id)}">${headshot(p.img, p.color, 46, p.name)}</a><a class="t" href="${href.player(p.lk, p.id)}"><b>${esc(p.name)}</b><span>${esc([p.team, LEAGUES[p.lk] && LEAGUES[p.lk].label].filter(Boolean).join(', '))}</span></a><button class="star on" data-act="follow-player" data-snap='${esc(JSON.stringify(p))}' aria-pressed="true" aria-label="Unfollow ${esc(p.name)}">${starSvg}</button></div>`);
+    const standalone = V.standalone ? V.standalone() : false;
+    $main.innerHTML = back +
+      sec('My teams', `${teamRows.length}`, `<a href="#teams">Add</a>`) + (teamRows.length ? `<div class="rows">${teamRows.join('')}</div>` : empty('No teams yet', '', `<a class="btn" href="#teams">Choose teams</a>`)) +
+      sec('My players', `${playerRows.length}`, `<a href="#players">Add</a>`) + (playerRows.length ? `<div class="rows">${playerRows.join('')}</div>` : empty('No players yet', '', `<a class="btn" href="#players">Find players</a>`)) +
+      sec('Home shows') + `<div class="rows">${PREFS.map(([k, t, b]) => sw(k, P[k] !== false, t, b)).join('')}</div>` +
+      sec('Game cards') + `<div class="rows">${sw('forecast', P.forecast !== false, 'Win chances', "RIVL's own estimate on each game card and game page")}</div>` +
+      sec('Appearance') + `<div class="chips" role="radiogroup" aria-label="Theme">${[['system', 'Match my phone'], ['dark', 'Dark'], ['light', 'Light']].map(([k, l]) => `<button class="chip${theme === k ? ' on' : ''}" data-act="theme" data-theme="${k}" role="radio" aria-checked="${theme === k}">${l}</button>`).join('')}</div>` +
+      sec('App') + `<div class="rows">${standalone ? '' : `<button class="row" data-act="install"><span class="t"><b>Add to home screen</b><span class="wrap">Opens full screen like an app, your teams first</span></span>${chev}</button>`}<button class="row" data-act="onb-restart"><span class="t"><b>Run setup again</b><span class="wrap">Pick teams and players from the start</span></span>${chev}</button></div>` +
+      `<p class="foot">Scores, stats, injuries and news are ESPN's, straight from their public feeds. Win chances are RIVL's own estimate and not betting advice.</p>`;
+    if (V._settingsL) { $main.removeEventListener('rivl:fav', V._settingsL); $main.removeEventListener('rivl:follow', V._settingsL); }
+    V._settingsL = () => { if ((location.hash || '') === '#settings') settingsV(); };
+    $main.addEventListener('rivl:fav', V._settingsL); $main.addEventListener('rivl:follow', V._settingsL);
+  }
+
+  Object.assign(V, { standings: standingsV, teams: teamsV, team: teamV, game: gameV, article: articleV, search: searchV, settings: settingsV });
 })();

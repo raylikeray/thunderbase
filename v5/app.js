@@ -18,6 +18,7 @@
     if ((m = h.match(/^(player|team|game|article)\/([a-z]+)\/([A-Za-z0-9]+)$/))) return { name: m[1], lk: lkOf(m[2]), args: [lkOf(m[2]), m[3]] };
     if (LEAGUES[h]) { store.set('v5:lk', h); return { name: store.get('v5:screen', 'home'), lk: h, args: [h] }; }
     if (h === 'search') return { name: 'search', lk: lkOf(store.get('v5:lk', 'nba')), args: [] };
+    if (h === 'settings') return { name: 'settings', lk: lkOf(store.get('v5:lk', 'nba')), args: [] };
     const name = SCREENS.includes(h) ? h : 'home';
     const lk = lkOf(store.get('v5:lk', 'nba'));
     return { name, lk, args: [lk] };
@@ -32,7 +33,7 @@
   function paintTabs(name) {
     $tabs.querySelectorAll('.tab').forEach(t => { const on = t.dataset.tab === name; t.classList.toggle('on', on); if (on) t.setAttribute('aria-current', 'page'); else t.removeAttribute('aria-current'); });
   }
-  const TITLES = { home: 'Home', scores: 'Scores', standings: 'Standings', players: 'Players', teams: 'Teams', search: 'Search' };
+  const TITLES = { home: 'Home', scores: 'Scores', standings: 'Standings', players: 'Players', teams: 'Teams', search: 'Search', settings: 'Settings' };
 
   /* ---------- render ---------- */
   let seq = 0, current = null;
@@ -44,7 +45,7 @@
     document.getElementById('top').hidden = !leagueScreen;
     paintPills(r.lk, leagueScreen);
     paintTabs(leagueScreen ? r.name : (r.name === 'player' ? 'players' : r.name === 'team' ? 'teams' : r.name === 'game' ? 'scores' : r.name === 'article' ? 'home' : ''));
-    document.title = leagueScreen ? `${TITLES[r.name]} · ${LEAGUES[r.lk].label} · RIVL` : 'RIVL';
+    document.title = leagueScreen ? `${TITLES[r.name]} · ${LEAGUES[r.lk].label} · RIVL` : `${TITLES[r.name] || ''} RIVL`.trim();
     window.scrollTo(0, 0);
     try { await (V[r.name] || V.home)(...r.args); }
     catch (err) { if (my === seq) $main.innerHTML = `<div class="empty"><b>Something went wrong</b><p style="margin:6px 0 0">${esc(err && err.message || 'Try again in a moment.')}</p></div>`; console.error(err); }
@@ -82,7 +83,11 @@
       const g = byId.get(el.dataset.gid); if (!g) return;
       const scores = el.querySelectorAll('.sc');
       if (el.classList.contains('hero')) { const sc = el.querySelector('.mid .sc'); const st = el.querySelector('.mid .st'); if (sc) { const txt = `${g.away.score ?? ''}–${g.home.score ?? ''}`; if (sc.textContent !== txt) { sc.innerHTML = `${g.away.score ?? ''}<i>–</i>${g.home.score ?? ''}`; sc.classList.remove('bump'); void sc.offsetWidth; sc.classList.add('bump'); } } if (st) st.textContent = g.state === 'in' ? g.detail : g.state === 'post' ? 'Final' : st.textContent; return; }
-      if (scores.length === 2) { [g.away.score, g.home.score].forEach((v, i) => { const t = v == null ? '' : String(v); if (scores[i].textContent !== t) { scores[i].textContent = t; el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); } }); }
+      if (scores.length === 2) {
+        [g.away.score, g.home.score].forEach((v, i) => { const t = v == null ? '' : String(v); if (scores[i].textContent !== t) { scores[i].textContent = t; el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); } });
+        const sides = el.querySelectorAll('.side'); const has = g.state !== 'pre' && g.away.score != null && g.home.score != null;
+        [[g.away, g.home], [g.home, g.away]].forEach(([t, o], i) => { const lead = has && t.score > o.score; sides[i].classList.toggle('lo', has && t.score < o.score); scores[i].classList.toggle('on', lead); scores[i].classList.toggle('won', lead && g.state === 'post'); });
+      }
       const live = el.querySelector('.status .live'); if (live && g.state === 'in') live.textContent = g.detail;
       if (g.state === 'post' && el.querySelector('.status .live')) render();   // a game just ended: let the view re-sort it into finals
     });
@@ -107,7 +112,7 @@
       if (act.classList.contains('star')) { act.innerHTML = on ? `<svg viewBox="0 0 24 24" fill="currentColor"><path d="m12 2.8 2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.7l-5.9 3.1 1.2-6.5L2.5 9.7l6.6-.9z"/></svg>` : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="m12 2.8 2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.7l-5.9 3.1 1.2-6.5L2.5 9.7l6.6-.9z"/></svg>`; act.setAttribute('aria-label', (on ? 'Unfollow ' : 'Follow ') + (snap.name || '')); }
       else act.innerHTML = (on ? `<svg viewBox="0 0 24 24" fill="currentColor"><path d="m12 2.8 2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.7l-5.9 3.1 1.2-6.5L2.5 9.7l6.6-.9z"/></svg>` : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="m12 2.8 2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.7l-5.9 3.1 1.2-6.5L2.5 9.7l6.6-.9z"/></svg>`) + (on ? 'Following' : 'Follow');
       toast(on ? `Following ${snap.short || snap.name}` : `Unfollowed ${snap.short || snap.name}`);
-      $main.dispatchEvent(new CustomEvent('rivl:follow'));
+      $main.dispatchEvent(new CustomEvent('rivl:follow')); $panel.dispatchEvent(new CustomEvent('rivl:follow'));
     }
     if (a === 'mix') {
       e.preventDefault();
@@ -121,7 +126,9 @@
       if (navigator.share) navigator.share({ title, url }).catch(() => { });
       else if (navigator.clipboard) navigator.clipboard.writeText(url).then(() => toast('Link copied')).catch(() => toast(url));
     }
-    if (a === 'updates') { e.preventDefault(); toast('Alerts come after launch'); }
+    if (a === 'pref') { e.preventDefault(); const on = act.getAttribute('aria-checked') !== 'true'; V.prefs.set(act.dataset.pref, on); act.setAttribute('aria-checked', String(on)); }
+    if (a === 'theme') { e.preventDefault(); store.set('v5:theme', act.dataset.theme); applyTheme(); $main.querySelectorAll('[data-act="theme"]').forEach(b => { const on = b.dataset.theme === act.dataset.theme; b.classList.toggle('on', on); b.setAttribute('aria-checked', String(on)); }); }
+    if (a === 'onb-restart') { e.preventDefault(); onbStep(0); }
     if (a === 'fav') {
       e.preventDefault();
       const on = HW.favs.toggle(act.dataset.lk, act.dataset.id);
@@ -137,11 +144,11 @@
     if (a === 'injury') { e.preventDefault(); openInjury(act.dataset.key); }
     if (a === 'reload') { e.preventDefault(); render(); }
     if (a === 'onb-next') { e.preventDefault(); onbStep(+act.dataset.step); }
-    if (a === 'onb-lk') { e.preventDefault(); store.set('v5:lk', act.dataset.lk); onbStep(1); }
+    if (a === 'onb-lk') { e.preventDefault(); store.set('v5:lk', act.dataset.lk); onbStep(+(act.dataset.step || 0)); }
     if (a === 'onb-done') { e.preventDefault(); store.set('v5:onboarded', true); closePanel(); render(); }
     if (a === 'install') { e.preventDefault(); install(); }
     if (a === 'install-later') { e.preventDefault(); store.set('v5:installDismissed', Date.now()); const b = document.getElementById('installBar'); if (b) b.remove(); }
-    if (a === 'panel-close') { e.preventDefault(); closePanel(); }
+    if (a === 'panel-close') { e.preventDefault(); closePanel(); const to = act.getAttribute('href'); if (to && to.startsWith('#')) location.hash = to; }
     if (a === 'date') { e.preventDefault(); store.set('v5:date', act.dataset.ymd); render(); }
   });
 
@@ -179,53 +186,79 @@
   function openInjury(key) {
     const rec = S.injuries && S.injuries[key]; if (!rec) return;
     const { x, team } = rec; const at = x.athlete || {}; const det = x.details || {}; const st = x.status || '';
+    const lk = current ? current.lk : 'nba'; const L = LEAGUES[lk];
+    const id = rec.id || V._.athId(at);
     const cls = /out/i.test(st) ? 'out' : /day|quest|doubt/i.test(st) ? 'q' : /prob|avail/i.test(st) ? 'ok' : '';
     const what = [det.type, det.detail && det.detail !== det.type ? det.detail : '', det.side && det.side !== 'Not Specified' ? det.side.toLowerCase() : '', det.location && det.location !== det.type ? det.location : ''].filter(Boolean).join(', ');
-    const rows = [['Status', `<span class="tag ${cls}">${esc(st)}</span>`], ['Injury', esc(what || '—')], ['Reported', x.date ? esc(new Date(x.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', timeZone: HW.TZ })) : ''], ['Expected back', det.returnDate ? esc(new Date(det.returnDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', timeZone: 'UTC' })) : (/out/i.test(st) ? 'No date given' : '')], ['Fantasy', det.fantasyStatus && det.fantasyStatus.description ? esc(det.fantasyStatus.description) : '']].filter(([, v]) => v);
+    const ret = V._.retInfo(L, det.returnDate);
+    const rows = [['Status', `<span class="tag ${cls}">${esc(st)}</span>`], ['Injury', esc(what || '—')], ['Reported', x.date ? esc(new Date(x.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', timeZone: HW.TZ })) : ''], ['Expected back', ret ? esc(ret.long) : (/out/i.test(st) ? 'No date given' : '')], ['Fantasy', det.fantasyStatus && det.fantasyStatus.description ? esc(det.fantasyStatus.description) : '']].filter(([, v]) => v);
     const note = x.longComment || x.shortComment || '';
-    const lk = current ? current.lk : 'nba';
     openPanel(`<button class="ib close" data-act="panel-close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
-      <div class="inj-head"><span class="hs" style="--tc:${esc(team.color || '#2A2D33')};width:64px;height:64px">${at.headshot ? `<img src="${esc(at.headshot.href || at.headshot)}" alt="" onerror="this.style.visibility='hidden'">` : ''}</span><div><h3>${esc(at.displayName || '')}</h3><p>${esc(team.short || '')}${at.position && at.position.abbreviation ? `, ${esc(at.position.abbreviation)}` : ''}</p></div></div>
+      <div class="inj-head">${V._.headshot(V._.hsUrl(at), team.color, 64, at.displayName)}<div><h3>${esc(at.displayName || '')}</h3><p>${esc(team.short || '')}${at.position && at.position.abbreviation ? `, ${esc(at.position.abbreviation)}` : ''}</p></div></div>
       <table class="tbl kv"><tbody>${rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('')}</tbody></table>
       ${note ? `<p class="inj-note">${esc(note)}</p>` : ''}
-      <p class="foot" style="padding:10px 0 0">Status and notes are ESPN's. The line effect on forecasts is RIVL's.</p>
-      <div style="display:flex;gap:8px;margin-top:14px"><a class="btn" href="#player/${lk}/${esc(at.id || '')}" data-act="panel-close">Open profile</a><a class="btn ghost" href="#team/${lk}/${esc(team.id)}" data-act="panel-close">${esc(team.short || 'Team')}</a></div>`);
+      <p class="foot" style="padding:10px 0 0">Status, dates and the note are ESPN's, word for word.</p>
+      <div style="display:flex;gap:8px;margin-top:14px">${id ? `<a class="btn" href="#player/${lk}/${esc(id)}" data-act="panel-close">Open profile</a>` : ''}${team.id ? `<a class="btn ghost" href="#team/${lk}/${esc(team.id)}" data-act="panel-close">${esc(team.short || 'Team')}</a>` : ''}</div>`);
   }
 
-  /* ---------- first run: pick teams, pick players, add to the home screen ---------- */
+  /* ---------- theme: match the phone, or force dark or light ---------- */
+  function applyTheme() {
+    const t = store.get('v5:theme', 'system'); const root = document.documentElement;
+    if (t === 'dark' || t === 'light') root.setAttribute('data-theme', t); else root.removeAttribute('data-theme');
+    const light = t === 'light' || (t !== 'dark' && window.matchMedia('(prefers-color-scheme: light)').matches);
+    const meta = document.querySelector('meta[name="theme-color"]'); if (meta) meta.setAttribute('content', light ? '#E6E8ED' : '#000000');
+  }
+  applyTheme(); window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', applyTheme);
+
+  /* ---------- first run: pick teams, pick players, choose what Home shows, add to the home screen ---------- */
   let deferredInstall = null;
   window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredInstall = e; const b = document.getElementById('installBtn'); if (b) b.hidden = false; });
   const standalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  V.standalone = standalone;
   const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) && !window.MSStream;
   async function install() { if (deferredInstall) { deferredInstall.prompt(); const r = await deferredInstall.userChoice.catch(() => null); deferredInstall = null; if (r && r.outcome === 'accepted') { toast('Installed'); const b = document.getElementById('installBar'); if (b) b.remove(); } } else toast(isIOS ? 'Tap Share, then Add to Home Screen' : 'Use your browser menu: Add to Home screen'); }
-  function needsOnboarding() { if (store.get('v5:onboarded', false)) return false; const F = HW.favs.all(); const anyTeam = ORDER.some(k => (F[k] || []).length); const anyPlayer = (store.get('v5:players', []) || []).length; return !(anyTeam || anyPlayer); }
+  function needsOnboarding() { return !store.get('v5:onboarded', false); }
+  const STEPS = 4;
+  const onbMark = `<svg viewBox="0 0 250 123.41" fill="currentColor"><path d="M0 0H88.8A11.2 11.2 0 0 1 100 11.2V50.5A11.2 11.2 0 0 1 88.8 61.7H62.3L0 25.61ZM0 47.02L100 104.96V123.41H0ZM108 0H132V123.41H108ZM140 0H164.5L168.0 96L171.5 0H196L192 123.41H144ZM204 0H228V99.41H250V123.41H204Z"/></svg>`;
   async function onbStep(n) {
     const lk = lkOf(store.get('v5:lk', 'nba')); const L = LEAGUES[lk];
-    const dots = `<div class="onb-dots">${[0, 1, 2].map(i => `<i class="${i === n ? 'on' : ''}"></i>`).join('')}</div>`;
-    const leaguePills = `<div class="pills" style="padding:0 0 14px">${ORDER.map(k => `<button class="pill${k === lk ? ' on' : ''}" data-act="onb-lk" data-lk="${k}">${esc(LEAGUES[k].label)}</button>`).join('')}</div>`;
+    const dots = `<div class="onb-dots">${Array.from({ length: STEPS }, (_, i) => `<i class="${i === n ? 'on' : ''}"></i>`).join('')}</div>`;
+    const leaguePills = `<div class="pills" style="padding:0 0 14px">${ORDER.map(k => `<button class="pill${k === lk ? ' on' : ''}" data-act="onb-lk" data-lk="${k}" data-step="${n}">${esc(LEAGUES[k].label)}</button>`).join('')}</div>`;
+    const frame = (title, body, inner, foot) => openPanel(`<div class="onb"><div class="onb-logo">${onbMark}</div>${dots}<h2>${title}</h2><p>${body}</p>${inner}<div class="onb-foot">${foot}</div></div>`, { full: true });
     if (n === 0 || n === 1) {
-      openPanel(`<div class="onb"><div class="onb-logo"><svg viewBox="0 0 250 123.41" fill="currentColor"><path d="M0 0H88.8A11.2 11.2 0 0 1 100 11.2V50.5A11.2 11.2 0 0 1 88.8 61.7H62.3L0 25.61ZM0 47.02L100 104.96V123.41H0ZM108 0H132V123.41H108ZM140 0H164.5L168.0 96L171.5 0H196L192 123.41H144ZM204 0H228V99.41H250V123.41H204Z"/></svg></div>${dots}<h2>${n === 0 ? 'Pick your teams' : 'Follow some players'}</h2><p>${n === 0 ? 'They lead Home and are the only ones you get updates about.' : 'Their lines, clips and profiles sit on Home next to your teams.'}</p>${leaguePills}<div class="search" style="margin:0 0 12px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg><input id="onbq" type="search" placeholder="${n === 0 ? 'Search teams' : 'Search players'}" autocomplete="off"></div><div id="onbList" class="onb-list">${Array.from({ length: 6 }, () => '<div class="skel row" style="margin:0 0 8px"></div>').join('')}</div><div class="onb-foot"><button class="btn ghost" data-act="onb-next" data-step="${n + 1}">${n === 0 ? 'Skip' : 'Skip'}</button><button class="btn" data-act="onb-next" data-step="${n + 1}" id="onbNext">Continue</button></div></div>`, { full: true });
+      const nn = n === 0 ? ORDER.reduce((c, k) => c + (HW.favs.all()[k] || []).length, 0) : V.fplayers.all().length;
+      frame(n === 0 ? 'Pick your teams' : 'Follow some players', n === 0 ? 'They lead Home and are the only ones you get updates about.' : 'Their lines, clips and profiles sit on Home next to your teams.',
+        `${leaguePills}<div class="search" style="margin:0 0 12px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg><input id="onbq" type="search" placeholder="${n === 0 ? 'Search teams' : 'Search players'}" autocomplete="off"></div><div id="onbList" class="onb-list">${Array.from({ length: 6 }, () => '<div class="skel row" style="margin:0 0 8px"></div>').join('')}</div>`,
+        `<button class="btn ghost" data-act="onb-next" data-step="${n + 1}">Skip</button><button class="btn" data-act="onb-next" data-step="${n + 1}" id="onbNext">${nn ? `Continue with ${nn}` : 'Continue'}</button>`);
       const list = document.getElementById('onbList'); const inp = document.getElementById('onbq');
       if (n === 0) {
         const [idx, st] = await Promise.all([V.teamsIndex(L), HW.standings(L).catch(() => null)]);
         const all = Object.values(idx).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
         const paint = () => { const q = inp.value.trim().toLowerCase(); const rows = all.filter(tm => !q || `${tm.name} ${tm.abbr}`.toLowerCase().includes(q)).slice(0, 80); list.innerHTML = `<div class="onb-grid">${rows.map(tm => { const on = HW.favs.has(lk, tm.id); const r = st && st.byId && st.byId[tm.id]; return `<button class="onb-team${on ? ' on' : ''}" data-act="fav" data-lk="${lk}" data-id="${esc(tm.id)}" data-name="${esc(tm.short)}" aria-pressed="${on}"><span class="logo"><img src="${esc(tm.logo || '')}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"></span><b>${esc(tm.short || tm.name)}</b><span>${r ? `${r.w}-${r.l}` : ''}</span><i></i></button>`; }).join('')}</div>`; };
         paint(); inp.addEventListener('input', paint);
-        $panel.addEventListener('rivl:fav', () => { const nn = (HW.favs.all()[lk] || []).length; document.getElementById('onbNext').textContent = nn ? `Continue with ${nn}` : 'Continue'; }, { once: false });
       } else {
         const [lp, idx] = await Promise.all([L.sport === 'basketball' ? HW.leaguePlayers(L).catch(() => null) : null, V.teamsIndex(L)]);
         const rows0 = lp ? lp.rows.slice().sort((a, b) => b.pts - a.pts) : [];
-        const paint = () => { const q = inp.value.trim().toLowerCase(); const rows = rows0.filter(p => !q || `${p.name} ${p.team}`.toLowerCase().includes(q)).slice(0, q ? 60 : 30); list.innerHTML = rows.length ? `<div class="rows">${rows.map(p => { const tm = idx[p.teamId] || {}; const on = V.fplayers.has(lk, p.id); const snap = { lk, id: p.id, name: p.name, short: p.short || p.name, img: p.img, team: p.team, color: tm.color || '#2A2D33' }; return `<div class="row prow"><span class="hs" style="--tc:${esc(tm.color || '#2A2D33')};width:46px;height:46px">${p.img ? `<img src="${esc(p.img)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : ''}</span><span class="t"><b>${esc(p.name)}</b><span>${esc(tm.short || p.team)}, ${p.pts.toFixed(1)} ppg</span></span><button class="star${on ? ' on' : ''}" data-act="follow-player" data-snap='${esc(JSON.stringify(snap))}' aria-pressed="${on}" aria-label="Follow ${esc(p.name)}">${on ? '<svg viewBox="0 0 24 24" fill="currentColor"><path d="m12 2.8 2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.7l-5.9 3.1 1.2-6.5L2.5 9.7l6.6-.9z"/></svg>' : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="m12 2.8 2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.7l-5.9 3.1 1.2-6.5L2.5 9.7l6.6-.9z"/></svg>'}</button></div>`; }).join('')}</div>` : `<div class="empty"><b>No player stats yet</b><p style="margin:6px 0 0">${esc(L.label)} stats start once the season has games. You can follow players from any team page later.</p></div>`; };
+        const paint = () => { const q = inp.value.trim().toLowerCase(); const rows = rows0.filter(p => !q || `${p.name} ${p.team}`.toLowerCase().includes(q)).slice(0, q ? 60 : 30); list.innerHTML = rows.length ? `<div class="rows">${rows.map(p => { const tm = idx[p.teamId] || {}; const on = V.fplayers.has(lk, p.id); const snap = { lk, id: p.id, name: p.name, short: p.short || p.name, img: p.img, team: p.team, color: tm.color || '#2A2D33' }; return `<div class="row prow">${V._.headshot(p.img, tm.color, 46, p.name)}<span class="t"><b>${esc(p.name)}</b><span>${esc(tm.short || p.team)}, ${p.pts.toFixed(1)} ppg</span></span><button class="star${on ? ' on' : ''}" data-act="follow-player" data-snap='${esc(JSON.stringify(snap))}' aria-pressed="${on}" aria-label="Follow ${esc(p.name)}">${on ? '<svg viewBox="0 0 24 24" fill="currentColor"><path d="m12 2.8 2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.7l-5.9 3.1 1.2-6.5L2.5 9.7l6.6-.9z"/></svg>' : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="m12 2.8 2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.7l-5.9 3.1 1.2-6.5L2.5 9.7l6.6-.9z"/></svg>'}</button></div>`; }).join('')}</div>` : `<div class="empty"><b>No player stats yet</b><p style="margin:6px 0 0">${esc(L.label)} stats start once the season has games. You can follow players from any team page later.</p></div>`; };
         paint(); inp.addEventListener('input', paint);
       }
+    } else if (n === 2) {
+      const P = V.prefs.all();
+      const items = [['live', 'Live now', 'A big card when one of your teams is playing'], ['teams', 'My teams', 'Record, next game and the chance to win'], ['games', 'Your games', 'The next game for each team you follow'], ['players', 'My players', 'Scoring lines, one tap to the profile'], ['injuries', 'Injuries', 'Reports on your teams and players'], ['news', 'News', 'Stories about your teams and players'], ['forecast', 'Win chances', "RIVL's own estimate on each game card"]];
+      frame('What do you want to see?', 'Home is yours. Switch off anything you don\'t care about; you can change it later in Settings.',
+        `<div class="rows onb-prefs">${items.map(([k, t, b]) => `<button class="row sw" data-act="pref" data-pref="${k}" role="switch" aria-checked="${P[k] !== false}"><span class="t"><b>${esc(t)}</b><span class="wrap">${esc(b)}</span></span><span class="switch"></span></button>`).join('')}</div>`,
+        `<button class="btn ghost" data-act="onb-next" data-step="1">Back</button><button class="btn" data-act="onb-next" data-step="3">Continue</button>`);
     } else {
       const done = standalone();
-      openPanel(`<div class="onb"><div class="onb-logo"><svg viewBox="0 0 250 123.41" fill="currentColor"><path d="M0 0H88.8A11.2 11.2 0 0 1 100 11.2V50.5A11.2 11.2 0 0 1 88.8 61.7H62.3L0 25.61ZM0 47.02L100 104.96V123.41H0ZM108 0H132V123.41H108ZM140 0H164.5L168.0 96L171.5 0H196L192 123.41H144ZM204 0H228V99.41H250V123.41H204Z"/></svg></div>${dots}<h2>${done ? "You're set" : 'Put RIVL on your home screen'}</h2><p>${done ? 'RIVL is on your home screen. Your teams and players are waiting on Home.' : 'It opens full screen like an app, with no browser bar, and your teams load first.'}</p>
-        ${done ? '' : `<div class="onb-install"><img src="img/icon-192.png" alt="" width="64" height="64"><div>${deferredInstall ? `<button class="btn" data-act="install" id="installBtn">Install RIVL</button>` : isIOS ? `<b>In Safari</b><ol><li>Tap the Share button</li><li>Choose <b>Add to Home Screen</b></li><li>Tap <b>Add</b></li></ol>` : `<b>In your browser menu</b><p style="margin:4px 0 0">Choose <b>Add to Home screen</b> (or <b>Install app</b>).</p>`}</div></div>`}
-        <div class="onb-foot"><span></span><button class="btn" data-act="onb-done">${done ? 'Open Home' : 'Done'}</button></div></div>`, { full: true });
+      frame(done ? "You're set" : 'Put RIVL on your home screen', done ? 'RIVL is on your home screen. Your teams and players are waiting on Home.' : 'It opens full screen like an app, with no browser bar, and your teams load first.',
+        done ? '' : `<div class="onb-install"><img src="img/icon-192.png" alt="" width="64" height="64"><div>${deferredInstall ? `<button class="btn" data-act="install" id="installBtn">Install RIVL</button>` : isIOS ? `<b>In Safari</b><ol><li>Tap the Share button</li><li>Choose <b>Add to Home Screen</b></li><li>Tap <b>Add</b></li></ol>` : `<b>In your browser menu</b><p style="margin:4px 0 0">Choose <b>Add to Home screen</b> (or <b>Install app</b>).</p>`}</div></div>`,
+        `<button class="btn ghost" data-act="onb-next" data-step="2">Back</button><button class="btn" data-act="onb-done">${done ? 'Open Home' : 'Done'}</button>`);
     }
   }
   V.onbStep = onbStep;
+  /* the Continue button counts what has been picked so far */
+  const onbCount = () => { const b = document.getElementById('onbNext'); if (!b || $panel.hidden) return; const step = +(b.dataset.step || 1) - 1; const nn = step === 0 ? ORDER.reduce((c, k) => c + (HW.favs.all()[k] || []).length, 0) : V.fplayers.all().length; b.textContent = nn ? `Continue with ${nn}` : 'Continue'; };
+  $panel.addEventListener('rivl:fav', onbCount); $panel.addEventListener('rivl:follow', onbCount);
 
   /* ---------- boot ---------- */
   render().then(() => { poll(); if (needsOnboarding()) onbStep(0); });
