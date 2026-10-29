@@ -2,13 +2,14 @@
 //   node tools/nightly.mjs ratings   → data/<league>/{ratings,record,state}.json (margin Elo + forecast record vs ESPN BPI)
 //   node tools/nightly.mjs tune      → data/<league>/params.json (re-fits home court, rest, spread, rating speed and a calibration layer
 //                                      by replaying the season; the ratings are rebuilt with the winning mix)
+//   node tools/nightly.mjs teamstats → data/<league>/teamstats.json (four factors, pace, offensive/defensive rating, ranks; NBA and WNBA)
 //   node tools/nightly.mjs schedule  → data/<league>/schedule.json (every game of the season, compact: results so far and what's left,
 //                                      for the season simulation in RIVL; NBA and WNBA)
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 const { LEAGUES, ORDER, ESPN, TZ } = createRequire(import.meta.url)('../js/config.js');
 
-const mode = process.argv[2] || 'ratings';
+const mode = process.env.MODE || process.argv[2] || 'ratings';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 async function get(u, tries = 2) { for (let i = 0; ; i++) { try { const r = await fetch(u, { headers: { 'user-agent': 'tipoff-nightly' } }); if (!r.ok) throw new Error(u + ' ' + r.status); return await r.json(); } catch (e) { if (i >= tries) throw e; await sleep(800 * (i + 1)); } } }
 const soft = async u => { try { return await get(u); } catch (e) { console.log('fetch failed:', e.message); return null; } };
@@ -211,7 +212,7 @@ function compactEvent(e) {
   if (!home || !away || !home.team || !away.team) return null;
   const st = (c.status || e.status || {}).type || {}; const sc = x => x.score != null && x.score !== '' ? +(typeof x.score === 'object' ? x.score.displayValue : x.score) : null;
   const note = c.notes && c.notes[0] && c.notes[0].headline || '';
-  return { id: String(e.id), d: e.date ? ymdFmt.format(new Date(e.date)) : '',   // the game's date in Central time, as RIVL counts days h: String(home.team.id), a: String(away.team.id), hs: sc(home), as: sc(away), st: st.state || 'pre', n: c.neutralSite ? 1 : 0, t: e.season && e.season.type != null ? +e.season.type : 2, x: /championship/i.test(note) && /cup|tournament/i.test(note) ? 1 : 0 };
+  return { id: String(e.id), d: e.date ? ymdFmt.format(new Date(e.date)) : '' /* the game's date in Central time, as RIVL counts days */, h: String(home.team.id), a: String(away.team.id), hs: sc(home), as: sc(away), st: st.state || 'pre', n: c.neutralSite ? 1 : 0, t: e.season && e.season.type != null ? +e.season.type : 2, x: /championship/i.test(note) && /cup|tournament/i.test(note) ? 1 : 0 };
 }
 async function runSchedule() {
   for (const lk of Object.keys(SEASON_END)) {
@@ -243,4 +244,56 @@ async function runSchedule() {
   }
 }
 
-if (mode === 'tune') await runTune(); else if (mode === 'schedule') await runSchedule(); else await runRatings();
+/* ---------- team season stats: the four factors, pace and ratings for every team, ranked ---------- */
+function flatStats(block) {
+  const m = {}; const cats = block && (block.categories || (block.splits && block.splits.categories) || []) || [];
+  cats.forEach(c => (c.stats || []).forEach(st => { if (st && st.name && st.value != null && isFinite(+st.value)) m[st.name] = +st.value; }));
+  return m;
+}
+function describe(d) {   // the shape of one answer, kept in the file so the client's assumptions can be checked against the feed
+  const out = { keys: Object.keys(d || {}) }; const r = d && d.results || {};
+  out.results = Object.keys(r); const cats = b => (b && (b.categories || (b.splits && b.splits.categories)) || []).map(c => ({ name: c.name, stats: (c.stats || []).map(s => s.name).slice(0, 60) }));
+  out.stats = cats(r.stats); out.opponent = cats(r.opponent); return out;
+}
+function derive(own, opp) {
+  const g = own.gamesPlayed || own.games || 0; if (!g) return null;
+  const per = (m, avg, tot) => m[avg] != null ? m[avg] : m[tot] != null ? m[tot] / g : null;
+  const T = m => ({ pts: per(m, 'avgPoints', 'points'), fga: per(m, 'avgFieldGoalsAttempted', 'fieldGoalsAttempted'), fgm: per(m, 'avgFieldGoalsMade', 'fieldGoalsMade'), tpm: per(m, 'avgThreePointFieldGoalsMade', 'threePointFieldGoalsMade'), tpa: per(m, 'avgThreePointFieldGoalsAttempted', 'threePointFieldGoalsAttempted'), fta: per(m, 'avgFreeThrowsAttempted', 'freeThrowsAttempted'), ftm: per(m, 'avgFreeThrowsMade', 'freeThrowsMade'), orb: per(m, 'avgOffensiveRebounds', 'offensiveRebounds'), drb: per(m, 'avgDefensiveRebounds', 'defensiveRebounds'), tov: per(m, 'avgTurnovers', 'turnovers'), ast: per(m, 'avgAssists', 'assists'), stl: per(m, 'avgSteals', 'steals'), blk: per(m, 'avgBlocks', 'blocks'), pf: per(m, 'avgFouls', 'fouls') });
+  const a = T(own), b = T(opp || {});
+  const poss = x => x.fga != null && x.orb != null && x.tov != null && x.fta != null ? x.fga - x.orb + x.tov + 0.44 * x.fta : null;
+  const pa = poss(a), pb = poss(b);
+  const r = { gp: g, pts: a.pts, oppPts: b.pts, pace: pa != null && pb != null ? (pa + pb) / 2 : pa, ortg: pa ? 100 * a.pts / pa : null, drtg: pb && b.pts != null ? 100 * b.pts / pb : null,
+    efg: a.fga ? (a.fgm + 0.5 * (a.tpm || 0)) / a.fga : null, tovr: pa ? a.tov / pa : null, orbr: a.orb != null && b.drb != null && (a.orb + b.drb) ? a.orb / (a.orb + b.drb) : null, ftr: a.fga ? a.fta / a.fga : null,
+    oefg: b.fga ? (b.fgm + 0.5 * (b.tpm || 0)) / b.fga : null, otovr: pb ? b.tov / pb : null, drbr: a.drb != null && b.orb != null && (a.drb + b.orb) ? a.drb / (a.drb + b.orb) : null, oftr: b.fga ? b.fta / b.fga : null,
+    tpr: a.fga && a.tpa != null ? a.tpa / a.fga : null, ast: a.ast, tov: a.tov, stl: a.stl, blk: a.blk, fg: a.fga ? a.fgm / a.fga : null, tp: a.tpa ? a.tpm / a.tpa : null, ft: a.fta ? a.ftm / a.fta : null };
+  r.net = r.ortg != null && r.drtg != null ? r.ortg - r.drtg : null;
+  Object.keys(r).forEach(k => { if (r[k] != null && isFinite(r[k])) r[k] = +r[k].toFixed(4); else if (r[k] == null || !isFinite(r[k])) r[k] = null; });
+  return r;
+}
+const LOWER_BETTER = new Set(['drtg', 'tovr', 'oefg', 'oftr', 'oppPts', 'tov']);
+async function runTeamStats() {
+  for (const lk of ['nba', 'wnba']) {
+    const L = LEAGUES[lk]; if (!L) continue;
+    const R = readJson(`data/${lk}/ratings.json`, null); const ids = R && R.teams ? Object.keys(R.teams) : [];
+    if (!ids.length) { console.log(lk, 'teamstats: no teams yet'); continue; }
+    if (todayCT() < L.seasonStart) { console.log(lk, 'teamstats: season not started'); continue; }
+    const teams = {}; let shape = null, got = 0;
+    for (const id of ids) {
+      const d = await soft(`${API(L)}/teams/${id}/statistics`); if (!d) continue;
+      if (!shape) shape = describe(d);
+      const r = d.results || d; const own = flatStats(r.stats || r), opp = flatStats(r.opponent);
+      const v = derive(own, opp); if (!v) continue;
+      teams[id] = { ...v, abbr: R.teams[id].abbr, short: R.teams[id].short }; got++;
+      await sleep(150);
+    }
+    if (!got) { console.log(lk, 'teamstats: nothing came back', JSON.stringify(shape || {}).slice(0, 300)); continue; }
+    // ranks: 1 is best
+    const keys = ['pts', 'oppPts', 'pace', 'ortg', 'drtg', 'net', 'efg', 'tovr', 'orbr', 'ftr', 'oefg', 'otovr', 'drbr', 'oftr', 'tpr', 'ast', 'tov', 'stl', 'blk', 'fg', 'tp', 'ft'];
+    const ranks = {}; keys.forEach(k => { const list = Object.entries(teams).filter(([, t]) => t[k] != null).sort((x, y) => LOWER_BETTER.has(k) ? x[1][k] - y[1][k] : y[1][k] - x[1][k]); list.forEach(([id], i) => { (ranks[id] = ranks[id] || {})[k] = i + 1; }); });
+    Object.keys(teams).forEach(id => teams[id].rank = ranks[id] || {});
+    writeJson(`data/${lk}/teamstats.json`, { generated: new Date().toISOString(), season: L.seasonStart, n: got, teams, shape });
+    console.log(lk, `teamstats: ${got} teams`);
+  }
+}
+
+if (mode === 'tune') await runTune(); else if (mode === 'schedule') await runSchedule(); else if (mode === 'teamstats') await runTeamStats(); else await runRatings();

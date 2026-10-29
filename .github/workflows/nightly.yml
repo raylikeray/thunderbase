@@ -20,6 +20,8 @@ jobs:
       - run: node tools/nightly.mjs tune
       - run: node tools/nightly.mjs schedule
         continue-on-error: true
+      - run: node tools/nightly.mjs teamstats
+        continue-on-error: true
       - run: |
           git config user.name "tipoff-bot"
           git config user.email "actions@users.noreply.github.com"
