@@ -2,6 +2,8 @@
 //   node tools/nightly.mjs ratings   → data/<league>/{ratings,record,state}.json (margin Elo + forecast record vs ESPN BPI)
 //   node tools/nightly.mjs tune      → data/<league>/params.json (re-fits home court, rest, spread, rating speed and a calibration layer
 //                                      by replaying the season; the ratings are rebuilt with the winning mix)
+//   node tools/nightly.mjs schedule  → data/<league>/schedule.json (every game of the season, compact: results so far and what's left,
+//                                      for the season simulation in RIVL; NBA and WNBA)
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 const { LEAGUES, ORDER, ESPN, TZ } = createRequire(import.meta.url)('../js/config.js');
@@ -201,4 +203,38 @@ async function runTune() {
   }
 }
 
-if (mode === 'tune') await runTune(); else await runRatings();
+/* ---------- the season schedule, compact, for the playoff-odds simulation ---------- */
+const SEASON_END = { nba: '-04-20', wnba: '-09-20' };
+function compactEvent(e) {
+  const c = e.competitions && e.competitions[0]; if (!c) return null;
+  const home = (c.competitors || []).find(x => x.homeAway === 'home'), away = (c.competitors || []).find(x => x.homeAway === 'away');
+  if (!home || !away || !home.team || !away.team) return null;
+  const st = (c.status || e.status || {}).type || {}; const sc = x => x.score != null && x.score !== '' ? +(typeof x.score === 'object' ? x.score.displayValue : x.score) : null;
+  const note = c.notes && c.notes[0] && c.notes[0].headline || '';
+  return { id: String(e.id), d: String(e.date || '').slice(0, 10), h: String(home.team.id), a: String(away.team.id), hs: sc(home), as: sc(away), st: st.state || 'pre', n: c.neutralSite ? 1 : 0, t: e.season && e.season.type != null ? +e.season.type : 2, x: /championship/i.test(note) && /cup|tournament/i.test(note) ? 1 : 0 };
+}
+async function runSchedule() {
+  for (const lk of Object.keys(SEASON_END)) {
+    const L = LEAGUES[lk]; if (!L) continue;
+    const y = +L.seasonStart.slice(0, 4); const end = (lk === 'nba' ? y + 1 : y) + SEASON_END[lk];
+    if (todayCT() < addDays(L.seasonStart, -7)) { console.log(lk, 'season not yet scheduled'); continue; }
+    const params = (L.sbParams || '').replace(/&limit=\d+/, '');
+    const span = async (a, b, lim) => { const d = await soft(`${API(L)}/scoreboard?dates=${compact(a)}-${compact(b)}${params}&limit=${lim}`); return d && Array.isArray(d.events) ? d.events : null; };
+    const games = []; const seen = new Set(); let ok = true;
+    let d = L.seasonStart; if (d < addDays(todayCT(), -200)) d = addDays(todayCT(), -200);
+    while (d <= end) {
+      const [yy, mm] = d.split('-').map(Number); const last = `${d.slice(0, 7)}-${String(new Date(Date.UTC(yy, mm, 0)).getUTCDate()).padStart(2, '0')}`; const b = last > end ? end : last;
+      let evs = await span(d, b, 1000);
+      if (!evs || evs.length >= 1000) { evs = []; let a = d; while (a <= b) { const w = addDays(a, 6) > b ? b : addDays(a, 6); const part = await span(a, w, 400); if (!part) { ok = false; break; } evs.push(...part); a = addDays(w, 1); await sleep(150); } }
+      if (!ok) break;
+      evs.forEach(e => { const g = compactEvent(e); if (g && !seen.has(g.id)) { seen.add(g.id); games.push(g); } });
+      d = addDays(last, 1); await sleep(200);
+    }
+    if (!ok || !games.length) { console.log(lk, 'schedule: feed did not answer, keeping the last copy'); continue; }
+    games.sort((a, b) => a.d.localeCompare(b.d) || a.id.localeCompare(b.id));
+    writeJson(`data/${lk}/schedule.json`, { generated: new Date().toISOString(), season: L.seasonStart, through: end, games });
+    console.log(lk, `schedule: ${games.length} games, ${games.filter(g => g.st === 'post').length} final, ${games.filter(g => g.st !== 'post').length} to play`);
+  }
+}
+
+if (mode === 'tune') await runTune(); else if (mode === 'schedule') await runSchedule(); else await runRatings();

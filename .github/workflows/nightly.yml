@@ -18,6 +18,8 @@ jobs:
         with: { node-version: '20' }
       - run: node tools/nightly.mjs ratings
       - run: node tools/nightly.mjs tune
+      - run: node tools/nightly.mjs schedule
+        continue-on-error: true
       - run: |
           git config user.name "tipoff-bot"
           git config user.email "actions@users.noreply.github.com"
