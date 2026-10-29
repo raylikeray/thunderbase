@@ -211,7 +211,7 @@ function compactEvent(e) {
   if (!home || !away || !home.team || !away.team) return null;
   const st = (c.status || e.status || {}).type || {}; const sc = x => x.score != null && x.score !== '' ? +(typeof x.score === 'object' ? x.score.displayValue : x.score) : null;
   const note = c.notes && c.notes[0] && c.notes[0].headline || '';
-  return { id: String(e.id), d: String(e.date || '').slice(0, 10), h: String(home.team.id), a: String(away.team.id), hs: sc(home), as: sc(away), st: st.state || 'pre', n: c.neutralSite ? 1 : 0, t: e.season && e.season.type != null ? +e.season.type : 2, x: /championship/i.test(note) && /cup|tournament/i.test(note) ? 1 : 0 };
+  return { id: String(e.id), d: e.date ? ymdFmt.format(new Date(e.date)) : '',   // the game's date in Central time, as RIVL counts days h: String(home.team.id), a: String(away.team.id), hs: sc(home), as: sc(away), st: st.state || 'pre', n: c.neutralSite ? 1 : 0, t: e.season && e.season.type != null ? +e.season.type : 2, x: /championship/i.test(note) && /cup|tournament/i.test(note) ? 1 : 0 };
 }
 async function runSchedule() {
   for (const lk of Object.keys(SEASON_END)) {
