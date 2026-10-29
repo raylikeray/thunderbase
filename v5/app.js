@@ -112,7 +112,7 @@
       if (act.classList.contains('star')) { act.innerHTML = on ? `<svg viewBox="0 0 24 24" fill="currentColor"><path d="m12 2.8 2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.7l-5.9 3.1 1.2-6.5L2.5 9.7l6.6-.9z"/></svg>` : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="m12 2.8 2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.7l-5.9 3.1 1.2-6.5L2.5 9.7l6.6-.9z"/></svg>`; act.setAttribute('aria-label', (on ? 'Unfollow ' : 'Follow ') + (snap.name || '')); }
       else act.innerHTML = (on ? `<svg viewBox="0 0 24 24" fill="currentColor"><path d="m12 2.8 2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.7l-5.9 3.1 1.2-6.5L2.5 9.7l6.6-.9z"/></svg>` : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="m12 2.8 2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.7l-5.9 3.1 1.2-6.5L2.5 9.7l6.6-.9z"/></svg>`) + (on ? 'Following' : 'Follow');
       toast(on ? `Following ${snap.short || snap.name}` : `Unfollowed ${snap.short || snap.name}`);
-      $main.dispatchEvent(new CustomEvent('rivl:follow')); $panel.dispatchEvent(new CustomEvent('rivl:follow'));
+      $main.dispatchEvent(new CustomEvent('rivl:follow')); $panel.dispatchEvent(new CustomEvent('rivl:follow')); document.dispatchEvent(new CustomEvent('rivl:follow'));
     }
     if (a === 'mix') {
       e.preventDefault();
@@ -128,7 +128,7 @@
     }
     if (a === 'pref') { e.preventDefault(); const on = act.getAttribute('aria-checked') !== 'true'; V.prefs.set(act.dataset.pref, on); act.setAttribute('aria-checked', String(on)); }
     if (a === 'theme') { e.preventDefault(); store.set('v5:theme', act.dataset.theme); applyTheme(); $main.querySelectorAll('[data-act="theme"]').forEach(b => { const on = b.dataset.theme === act.dataset.theme; b.classList.toggle('on', on); b.setAttribute('aria-checked', String(on)); }); }
-    if (a === 'onb-restart') { e.preventDefault(); onbStep(0); }
+    if (a === 'onb-restart') { e.preventDefault(); onbLk = 'nba'; onbStep(0); }
     if (a === 'fav') {
       e.preventDefault();
       const on = HW.favs.toggle(act.dataset.lk, act.dataset.id);
@@ -137,15 +137,15 @@
       // a setup tile keeps its logo, name and record; only its check changes. Stars and the hero button redraw.
       if (!act.classList.contains('onb-team')) act.innerHTML = act.classList.contains('star') ? star : star + (on ? 'Following' : 'Follow');
       toast(on ? `Following ${act.dataset.name || 'team'}` : `Unfollowed ${act.dataset.name || 'team'}`);
-      $main.dispatchEvent(new CustomEvent('rivl:fav')); $panel.dispatchEvent(new CustomEvent('rivl:fav'));
+      $main.dispatchEvent(new CustomEvent('rivl:fav')); $panel.dispatchEvent(new CustomEvent('rivl:fav')); document.dispatchEvent(new CustomEvent('rivl:fav'));
     }
     if (a === 'expand') { e.preventDefault(); $main.querySelectorAll(`[data-more="${act.dataset.more}"]`).forEach(el => { el.hidden = false; }); act.remove(); }
     if (a === 'stab') { e.preventDefault(); store.set('v5:stab:' + (current ? current.lk : 'nba'), act.dataset.tab); render(); }
     if (a === 'play') { e.preventDefault(); openSheet(act.dataset.vid); }
     if (a === 'injury') { e.preventDefault(); openInjury(act.dataset.key); }
     if (a === 'reload') { e.preventDefault(); render(); }
-    if (a === 'onb-next') { e.preventDefault(); onbStep(+act.dataset.step); }
-    if (a === 'onb-lk') { e.preventDefault(); store.set('v5:lk', act.dataset.lk); onbStep(+(act.dataset.step || 0)); }
+    if (a === 'onb-next') { e.preventDefault(); onbLk = 'nba'; onbStep(+act.dataset.step); }
+    if (a === 'onb-lk') { e.preventDefault(); onbLk = act.dataset.lk; onbStep(+(act.dataset.step || 0)); }
     if (a === 'onb-done') { e.preventDefault(); store.set('v5:onboarded', true); closePanel(); render(); }
     if (a === 'install') { e.preventDefault(); install(); }
     if (a === 'install-later') { e.preventDefault(); store.set('v5:installDismissed', Date.now()); const b = document.getElementById('installBar'); if (b) b.remove(); }
@@ -219,18 +219,20 @@
   const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) && !window.MSStream;
   async function install() { if (deferredInstall) { deferredInstall.prompt(); const r = await deferredInstall.userChoice.catch(() => null); deferredInstall = null; if (r && r.outcome === 'accepted') { toast('Installed'); const b = document.getElementById('installBar'); if (b) b.remove(); } } else toast(isIOS ? 'Tap Share, then Add to Home Screen' : 'Use your browser menu: Add to Home screen'); }
   function needsOnboarding() { return !store.get('v5:onboarded', false); }
-  const STEPS = 4;
+  const STEPS = 4; let onbLk = 'nba';   // the league shown in setup; it never changes the league the app is on
   const onbMark = `<svg viewBox="0 0 250 123.41" fill="currentColor"><path d="M0 0H88.8A11.2 11.2 0 0 1 100 11.2V50.5A11.2 11.2 0 0 1 88.8 61.7H62.3L0 25.61ZM0 47.02L100 104.96V123.41H0ZM108 0H132V123.41H108ZM140 0H164.5L168.0 96L171.5 0H196L192 123.41H144ZM204 0H228V99.41H250V123.41H204Z"/></svg>`;
   async function onbStep(n) {
-    const lk = lkOf(store.get('v5:lk', 'nba')); const L = LEAGUES[lk];
+    const lk = lkOf(onbLk); const L = LEAGUES[lk];
     const dots = `<div class="onb-dots">${Array.from({ length: STEPS }, (_, i) => `<i class="${i === n ? 'on' : ''}"></i>`).join('')}</div>`;
     const leaguePills = `<div class="pills" style="padding:0 0 14px">${ORDER.map(k => `<button class="pill${k === lk ? ' on' : ''}" data-act="onb-lk" data-lk="${k}" data-step="${n}">${esc(LEAGUES[k].label)}</button>`).join('')}</div>`;
     const frame = (title, body, inner, foot) => openPanel(`<div class="onb"><div class="onb-logo">${onbMark}</div>${dots}<h2>${title}</h2><p>${body}</p>${inner}<div class="onb-foot">${foot}</div></div>`, { full: true });
     if (n === 0 || n === 1) {
       const nn = n === 0 ? ORDER.reduce((c, k) => c + (HW.favs.all()[k] || []).length, 0) : V.fplayers.all().length;
-      frame(n === 0 ? 'Pick your teams' : 'Follow some players', n === 0 ? 'They lead Home and are the only ones you get updates about.' : 'Their lines, clips and profiles sit on Home next to your teams.',
-        `${leaguePills}<div class="search" style="margin:0 0 12px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg><input id="onbq" type="search" placeholder="${n === 0 ? 'Search teams' : 'Search players'}" autocomplete="off"></div><div id="onbList" class="onb-list">${Array.from({ length: 6 }, () => '<div class="skel row" style="margin:0 0 8px"></div>').join('')}</div>`,
+      frame(n === 0 ? 'Pick your teams' : 'Follow some players', n === 0 ? 'They lead Home and are the only ones you get updates about.' : 'Picked from the rosters of the teams you follow. Search any team to see its roster.',
+        n === 0 ? `${leaguePills}<div class="search" style="margin:0 0 12px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg><input id="onbq" type="search" placeholder="Search teams" autocomplete="off"></div><div id="onbList" class="onb-list">${Array.from({ length: 6 }, () => '<div class="skel row" style="margin:0 0 8px"></div>').join('')}</div>`
+          : `${leaguePills}<div id="onbPick" class="onb-list"></div>`,
         `<button class="btn ghost" data-act="onb-next" data-step="${n + 1}">Skip</button><button class="btn" data-act="onb-next" data-step="${n + 1}" id="onbNext">${nn ? `Continue with ${nn}` : 'Continue'}</button>`);
+      if (n === 1) { await V.playerPicker(document.getElementById('onbPick'), L, { leaders: true }); return; }
       const list = document.getElementById('onbList'); const inp = document.getElementById('onbq');
       if (n === 0) {
         /* every team in the league. Pro leagues are one alphabetical grid; college is the AP Top 25 first, then each
@@ -249,11 +251,6 @@
           const html = groups.map(g => { const rows = g.rows.filter(tm => !q || `${tm.name} ${tm.short} ${tm.abbr} ${g.name}`.toLowerCase().includes(q)); if (!rows.length) return ''; return `${g.name ? `<div class="onb-sec"><b>${esc(g.name)}</b><span>${rows.length}</span></div>` : ''}<div class="onb-grid">${rows.map(tm => { const on = HW.favs.has(lk, tm.id); return `<button class="onb-team${on ? ' on' : ''}" data-act="fav" data-lk="${lk}" data-id="${esc(tm.id)}" data-name="${esc(tm.short)}" aria-pressed="${on}"><span class="logo"><img src="${esc(tm.logo || '')}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"></span><b>${esc(tm.short)}</b><span>${tm.rank ? `<em>No. ${tm.rank}</em>` : ''}${esc(tm.rec)}</span><i></i></button>`; }).join('')}</div>`; }).join('');
           list.innerHTML = html || `<div class="empty"><b>No team matches</b><p style="margin:6px 0 0">Try the school, the nickname or the conference.</p></div>`;
         };
-        paint(); inp.addEventListener('input', paint);
-      } else {
-        const [lp, idx] = await Promise.all([L.sport === 'basketball' ? HW.leaguePlayers(L).catch(() => null) : null, V.teamsIndex(L)]);
-        const rows0 = lp ? lp.rows.slice().sort((a, b) => b.pts - a.pts) : [];
-        const paint = () => { const q = inp.value.trim().toLowerCase(); const rows = rows0.filter(p => !q || `${p.name} ${p.team}`.toLowerCase().includes(q)).slice(0, q ? 60 : 30); list.innerHTML = rows.length ? `<div class="rows">${rows.map(p => { const tm = idx[p.teamId] || {}; const on = V.fplayers.has(lk, p.id); const snap = { lk, id: p.id, name: p.name, short: p.short || p.name, img: p.img, team: p.team, color: tm.color || '#2A2D33' }; return `<div class="row prow">${V._.headshot(p.img, tm.color, 46, p.name)}<span class="t"><b>${esc(p.name)}</b><span>${esc(tm.short || p.team)}, ${p.pts.toFixed(1)} ppg</span></span><button class="star${on ? ' on' : ''}" data-act="follow-player" data-snap='${esc(JSON.stringify(snap))}' aria-pressed="${on}" aria-label="Follow ${esc(p.name)}">${on ? '<svg viewBox="0 0 24 24" fill="currentColor"><path d="m12 2.8 2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.7l-5.9 3.1 1.2-6.5L2.5 9.7l6.6-.9z"/></svg>' : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="m12 2.8 2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.7l-5.9 3.1 1.2-6.5L2.5 9.7l6.6-.9z"/></svg>'}</button></div>`; }).join('')}</div>` : `<div class="empty"><b>No player stats yet</b><p style="margin:6px 0 0">${esc(L.label)} stats start once the season has games. You can follow players from any team page later.</p></div>`; };
         paint(); inp.addEventListener('input', paint);
       }
     } else if (n === 2) {

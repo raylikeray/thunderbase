@@ -528,3 +528,10 @@ html{touch-action:manipulation}
 .onb-sec span{color:var(--ink-3);font-weight:700;font-size:13px}
 .onb-grid + .onb-sec{padding-top:22px}
 .onb-team span em{font-style:normal;font-weight:800;color:var(--ink);margin-right:5px}
+/* player picker: a roster per followed team */
+.pp .search{margin-left:0;margin-right:0}
+.pp .sec.pp-team h2{display:flex;align-items:center;gap:8px;font-size:17px}
+.pp .sec.pp-team h2 .logo{width:26px;height:26px;background:none}
+.pp .sec.pp-team h2 .logo img{width:100%;height:100%}
+.onb .pp .rows,.onb .pp .sec,.onb .pp .empty,.onb .pp .foot{padding-left:0;padding-right:0;margin-left:0;margin-right:0}
+.onb .pp .sec{padding-top:18px}
