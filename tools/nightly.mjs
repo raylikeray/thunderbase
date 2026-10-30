@@ -1,5 +1,6 @@
 // Tipoff nightly jobs. Runs in GitHub Actions (Node 20+).
 //   node tools/nightly.mjs ratings   → data/<league>/{ratings,record,state}.json (margin Elo + forecast record vs ESPN BPI)
+//   node tools/nightly.mjs rebuild   → the live ratings replayed from the season start under params.json, no tuning (for a reset)
 //   node tools/nightly.mjs tune      → data/<league>/params.json (re-fits home court, rest, spread, rating speed and a calibration layer
 //                                      by replaying the season; the ratings are rebuilt with the winning mix)
 //   node tools/nightly.mjs teamstats → data/<league>/teamstats.json (four factors, pace, offensive/defensive rating, ranks; NBA and WNBA)
@@ -25,7 +26,7 @@ const writeJson = (p, v) => { mkdirSync(p.split('/').slice(0, -1).join('/'), { r
 
 /* ---------- parsing (mirrors js/core.js, trimmed) ---------- */
 function side(x) { const t = x.team || {}; const r = x.curatedRank && x.curatedRank.current; return { id: String(t.id), abbr: t.abbreviation || '', name: t.displayName || '', short: t.shortDisplayName || t.name || '', score: x.score != null && x.score !== '' ? +x.score : null, rank: r && r <= 25 ? r : null, rec: x.records && x.records[0] && x.records[0].summary || '', leaders: (x.leaders || []).map(l => ({ name: l.name, who: l.leaders && l.leaders[0] && l.leaders[0].athlete && l.leaders[0].athlete.displayName, val: l.leaders && l.leaders[0] && l.leaders[0].displayValue })) }; }
-function parseEvent(e) { const c = e.competitions[0]; const st = (c.status || e.status || {}).type || {}; const comp = c.competitors || []; return { id: String(e.id), date: e.date, name: e.name, state: st.state, detail: st.shortDetail, home: side(comp.find(x => x.homeAway === 'home') || comp[0] || {}), away: side(comp.find(x => x.homeAway === 'away') || comp[1] || {}), neutral: !!c.neutralSite, venue: c.venue && c.venue.fullName, tv: (c.broadcasts || []).flatMap(b => b.names || []).join(', '), note: c.notes && c.notes[0] && c.notes[0].headline || '' }; }
+function parseEvent(e) { const c = e.competitions[0]; const st = (c.status || e.status || {}).type || {}; const comp = c.competitors || []; return { id: String(e.id), date: e.date, name: e.name, state: st.state, detail: st.shortDetail, home: side(comp.find(x => x.homeAway === 'home') || comp[0] || {}), away: side(comp.find(x => x.homeAway === 'away') || comp[1] || {}), neutral: !!c.neutralSite, venue: c.venue && c.venue.fullName, tv: (c.broadcasts || []).flatMap(b => b.names || []).join(', '), note: c.notes && c.notes[0] && c.notes[0].headline || '', line: c.odds && c.odds[0] && c.odds[0].details || '' }; }
 async function scoreboard(L, ymd) { const d = await get(`${API(L)}/scoreboard?dates=${compact(ymd)}${L.sbParams}`); return (d.events || []).map(parseEvent); }
 /* football and baseball standings carry season totals; the model works in per-game terms */
 function perGame(L, val, v, always = false) { if (val == null || !(L.diffIsTotal || always)) return val; const gp = (v('wins') || 0) + (v('losses') || 0) + (v('ties') || 0) || v('gamesPlayed'); return gp ? +(val / gp).toFixed(2) : val; }
@@ -91,6 +92,12 @@ async function runRatings() {
     if (!st.init) { try { st.init = await initElo(L); } catch { } }   // older state files: keep the season's starting ratings for replays
     st.history = st.history || {};
     const P = paramsOf(L);
+    /* The line the app shows is the one on the scoreboard before tip; the one ESPN's summary keeps after the final is the closing
+       line, which knows more. The first morning run sees today's games with their morning lines — keep the earliest line seen
+       for each game, and when the game is scored, record it beside the closing one, so the blend can be scored as it was shown. */
+    st.lines = st.lines || {};
+    try { (await scoreboard(L, today)).forEach(g => { if (g.state === 'pre' && g.line && !st.lines[g.id]) st.lines[g.id] = { line: g.line, at: new Date().toISOString(), d: today }; }); } catch { }
+    Object.keys(st.lines).filter(id => st.lines[id].d < addDays(today, -10)).forEach(id => delete st.lines[id]);
     let from = addDays(st.lastDate, -1); if (from < addDays(L.seasonStart, -1)) from = addDays(L.seasonStart, -1);
     let prev = new Set(); try { prev = new Set((await scoreboard(L, addDays(from, -1))).filter(g => g.state === 'post').flatMap(g => [g.home.id, g.away.id])); } catch { }
     let n = 0, espnN = 0;
@@ -108,7 +115,9 @@ async function runRatings() {
           if (gp != null && gp !== '') { ep = parseFloat(gp) / 100; espnN++; } else if (wp0 != null) { ep = +wp0; espnN++; }
           const pc = s && Array.isArray(s.pickcenter) && s.pickcenter[0]; if (pc && pc.details) line = pc.details;
           await sleep(120); }
-        st.record.push({ id: g.id, date: d, h: g.home.abbr, a: g.away.abbr, hid: g.home.id, aid: g.away.id, hs: g.home.score, as: g.away.score, p: +f.p.toFixed(4), m: +f.margin.toFixed(2), ep: ep != null ? +ep.toFixed(4) : null, line, n: g.neutral ? 1 : 0, rh: prev.has(g.home.id) ? 1 : 0, ra: prev.has(g.away.id) ? 1 : 0 });
+        const seen = st.lines[g.id]; const gh = (st.elo[g.home.id] || {}).gp || 0, ga = (st.elo[g.away.id] || {}).gp || 0;
+        st.record.push({ id: g.id, date: d, h: g.home.abbr, a: g.away.abbr, hid: g.home.id, aid: g.away.id, hs: g.home.score, as: g.away.score, p: +f.p.toFixed(4), m: +f.margin.toFixed(2), ep: ep != null ? +ep.toFixed(4) : null, line, line0: seen ? seen.line : null, at0: seen ? seen.at.slice(11, 16) : null, gh, ga, n: g.neutral ? 1 : 0, rh: prev.has(g.home.id) ? 1 : 0, ra: prev.has(g.away.id) ? 1 : 0 });
+        delete st.lines[g.id];
         update(L, st, g, P); st.processed[g.id] = 1; n++;
       }
       prev = new Set(games.filter(g => g.state !== 'pre').flatMap(g => [g.home.id, g.away.id]));
@@ -176,6 +185,9 @@ async function runTune() {
     // the replay has to score games in order with the scores on them; mimic parseEvent shape for pregame/update
     games.forEach(g => { g.home.score = g.hs; g.away.score = g.as; });
     const prevP = readJson(`data/${lk}/params.json`, null);
+    /* One step a day, however many times the job runs. The job also runs on pushes to this file, and on 2026-10-29 seven runs in one
+       afternoon took seven "nightly" steps on the same 68 games — the in-sample fitting the capped step was built to prevent. */
+    if (prevP && prevP.tunedAt && prevP.tunedAt.slice(0, 10) === new Date().toISOString().slice(0, 10) && !process.env.FORCE_TUNE) { console.log(lk, 'tuned once already today'); continue; }
     const D = DEFAULTS(L); const cur = { hca: prevP ? prevP.hca : D.hca, b2b: prevP ? prevP.b2b : D.b2b, sd: prevP ? prevP.sd : D.sd, k: prevP ? prevP.k : D.k };
     const n = games.length; const minN = L.tuneAt || (lk === 'nba' ? 60 : lk === 'wnba' ? 40 : 150);
     const hist = (prevP && prevP.history) || [];
@@ -328,4 +340,15 @@ async function runTeamStats() {
   }
 }
 
-if (mode === 'tune') await runTune(); else if (mode === 'schedule') await runSchedule(); else if (mode === 'teamstats') await runTeamStats(); else await runRatings();
+/* rebuild: the live ratings replayed from the season's start under the parameters in params.json, no tuning step — for a reset */
+async function runRebuild() {
+  for (const lk of (process.env.LEAGUES ? process.env.LEAGUES.split(',') : ORDER)) {
+    const L = LEAGUES[lk]; const st = readJson(`data/${lk}/state.json`, null); if (!st || !st.init || !st.record || !st.record.length) { console.log(lk, 'nothing to rebuild'); continue; }
+    const games = st.record.map(g => ({ id: g.id, date: g.date, hid: g.hid, aid: g.aid, hs: g.hs, as: g.as, neutral: !!g.n, home: { id: g.hid, abbr: g.h, name: g.h, score: g.hs }, away: { id: g.aid, abbr: g.a, name: g.a, score: g.as } })).sort((a, b) => a.date.localeCompare(b.date));
+    const P = paramsOf(L); const r = replay(L, st.init, games, P);
+    Object.entries(r.st.elo).forEach(([id, v]) => { if (st.elo[id]) st.elo[id].elo = v.elo; });
+    writeJson(`data/${lk}/state.json`, st); writeRatings(L, st);
+    console.log(lk, `rebuilt ${games.length} games under hca ${P.hca} b2b ${P.b2b} sd ${P.sd} k ${P.k} · Brier ${r.brier.toFixed(4)} (replay)`);
+  }
+}
+if (mode === 'tune') await runTune(); else if (mode === 'rebuild') await runRebuild(); else if (mode === 'schedule') await runSchedule(); else if (mode === 'teamstats') await runTeamStats(); else await runRatings();
